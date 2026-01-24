@@ -16,4 +16,4 @@ For help getting started with Flutter development, view the
 samples, guidance on mobile development, and a full API reference.
 
 SUPABASE_URL= https://jzlbnuarsuoyffzbcter.supabase.co
-SUPABASE_ANON_KEY= sb_publishable_kbx50_AKpUfDD2UEjd1M1g_GrUN15Ui
+SUPABASE_ANON_KEY= sb_publishable_kbx50_AKpUfDD2UEjd1M1g_GrUN15Ui 
