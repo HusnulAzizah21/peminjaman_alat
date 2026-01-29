@@ -2,7 +2,7 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../pages/admin/admin_page.dart';
 import '../pages/petugas/petugas_page.dart';
-import '../pages/peminjam/peminjam_page.dart';
+import '../pages/peminjam/beranda.dart';
 import '../pages/login_page.dart';
 
 class AppController extends GetxController {

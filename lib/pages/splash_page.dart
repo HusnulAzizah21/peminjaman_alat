@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
 import 'admin/admin_page.dart';
 import 'petugas/petugas_page.dart';
-import 'peminjam/peminjam_page.dart';
+import 'peminjam/beranda.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});

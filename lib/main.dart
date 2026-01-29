@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pages/splash_page.dart';
 import 'controllers/app_controller.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,13 @@ class MyApp extends StatelessWidget {
     Get.put(AppController());
 
     return GetMaterialApp(
+      theme: ThemeData(
+        useMaterial3: true,
+        // Mengatur font utama aplikasi
+        textTheme: GoogleFonts.poppinsTextTheme(
+          Theme.of(context).textTheme,
+        ),
+      ),
       debugShowCheckedModeBanner: false,
       home: const SplashPage(), // ✅ SPLASH SCREEN
     );
