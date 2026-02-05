@@ -41,9 +41,9 @@ class AppController extends GetxController {
 
       // Pastikan nama tabel sama dengan yang ada di SplashPage (Gunakan 'profiles')
       final profile = await supabase
-          .from('profiles') 
+          .from('users') 
           .select()
-          .eq('id', user.id)
+          .eq('id_user', user.id)
           .maybeSingle();
 
       if (profile == null) {

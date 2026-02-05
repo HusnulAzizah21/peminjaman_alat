@@ -35,9 +35,9 @@ class _SplashPageState extends State<SplashPage> {
 
         // DIUBAH: Dari 'users' menjadi 'profiles' agar sama dengan Controller
         final profile = await supabase
-            .from('profiles')
+            .from('users')
             .select()
-            .eq('id', session.user.id)
+            .eq('id_user', session.user.id)
             .maybeSingle();
 
         if (profile == null) {
