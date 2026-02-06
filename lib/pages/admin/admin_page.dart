@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/app_controller.dart';
 import 'drawer.dart';
-// Import file baru yang akan dibuat (pastikan path benar)
-import 'crud_alat/form_alat.dart'; 
+import 'crud_alat/edit_alat.dart'; 
 import 'crud_kategori/kelola_kategori.dart';
 
 class AdminPage extends StatefulWidget {
@@ -32,35 +31,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
     }
   }
 
-  // --- KODE BARU: FUNGSI PILIHAN EDIT/HAPUS ---
-  void _showEditDeleteOptions(BuildContext context, Map<String, dynamic> item) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.edit, color: Colors.blue),
-            title: const Text("Edit Alat"),
-            onTap: () {
-              Get.back();
-              Get.to(() => FormAlatPage(alat: item)); // Navigasi ke Form Edit
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text("Hapus Alat"),
-            onTap: () {
-              Get.back();
-              _confirmDelete(item['id'], item['nama_alat']);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- KODE BARU: KONFIRMASI HAPUS ---
+  // --- KONFIRMASI HAPUS ---
   void _confirmDelete(dynamic id, String name) {
     Get.defaultDialog(
       title: "Hapus Alat",
@@ -77,7 +48,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
     );
   }
 
-  // --- KODE BARU: PILIHAN TOMBOL TAMBAH (+) ---
+  // --- PILIHAN TOMBOL TAMBAH (+) ---
   void _showAddOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -94,7 +65,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
               title: const Text("Tambah Alat Baru"),
               onTap: () {
                 Get.back();
-                Get.to(() => const FormAlatPage());
+                Get.to(() => const EditAlatPage(alat: {},));
               },
             ),
             ListTile(
@@ -221,7 +192,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
                   itemCount: filteredItems.length,
                   itemBuilder: (context, index) {
                     final item = filteredItems[index];
-                    return _buildAdminToolCard(context, item); // Pass context & item
+                    return _buildAdminToolCard(context, item);
                   },
                 );
               },
@@ -230,7 +201,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddOptions(context), // Update: Panggil pilihan (+)
+        onPressed: () => _showAddOptions(context),
         backgroundColor: const Color(0xFF1F3C58),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 30),
@@ -238,7 +209,6 @@ class _AdminBerandaPageState extends State<AdminPage> {
     );
   }
 
-  // UPDATE: Widget Card menerima data item untuk kebutuhan edit/hapus
   Widget _buildAdminToolCard(BuildContext context, Map<String, dynamic> item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,12 +247,49 @@ class _AdminBerandaPageState extends State<AdminPage> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Update: Ikon titik tiga sekarang bisa diklik
-            IconButton(
-              constraints: const BoxConstraints(),
+            // POPUP MENU DENGAN IKON HORIZONTAL
+            PopupMenuButton(
               padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               icon: const Icon(Icons.more_vert, color: Color(0xFF1F3C58), size: 18),
-              onPressed: () => _showEditDeleteOptions(context, item),
+              offset: const Offset(-15, 25), 
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              surfaceTintColor: Colors.white,
+              color: Colors.white,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  enabled: false,
+                  height: 40,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context);
+                          Get.to(() => EditAlatPage(alat: item));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.edit, color: Color(0xFF1F3C58), size: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context);
+                          _confirmDelete(item['id'], item['nama_alat']);
+                        },
+                        child: const Icon(Icons.delete, color: Color(0xFF1F3C58), size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
