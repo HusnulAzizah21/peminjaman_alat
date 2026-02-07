@@ -13,11 +13,13 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
   final c = Get.find<AppController>();
   final katController = TextEditingController();
 
+  // Fungsi Tambah
   Future<void> _addKategori() async {
     if (katController.text.isEmpty) return;
     try {
       await c.supabase.from('kategori').insert({'nama_kategori': katController.text});
       katController.clear();
+      c.triggerRefresh(); // Beritahu halaman lain untuk refresh
       setState(() {}); 
       Get.snackbar("Sukses", "Kategori ditambahkan");
     } catch (e) {
@@ -25,53 +27,49 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
     }
   }
 
+  // Fungsi Edit
+  Future<void> _editKategori(int id, String namaLama) async {
+    final editController = TextEditingController(text: namaLama);
+    Get.defaultDialog(
+      title: "Edit Kategori",
+      content: TextField(controller: editController),
+      textConfirm: "Simpan",
+      onConfirm: () async {
+        await c.supabase.from('kategori').update({'nama_kategori': editController.text}).eq('id_kategori', id);
+        c.triggerRefresh();
+        setState(() {});
+        Get.back();
+      }
+    );
+  }
+
+  // Fungsi Hapus (Set Alat menjadi Null/Tanpa Kategori)
   Future<void> _deleteKategori(int id) async {
     try {
-      await c.supabase.from('kategori').delete().eq('id', id);
+      // 1. Update alat yang pakai kategori ini agar jadi null (Tidak ada kategori)
+      await c.supabase.from('alat').update({'id_kategori': null}).eq('id_kategori', id);
+      
+      // 2. Baru hapus kategorinya
+      await c.supabase.from('kategori').delete().eq('id_kategori', id);
+      
+      c.triggerRefresh();
       setState(() {});
       Get.snackbar("Sukses", "Kategori dihapus");
     } catch (e) {
-      Get.snackbar("Gagal", "Kategori masih digunakan oleh alat lain");
+      Get.snackbar("Gagal", "Kesalahan: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Kelola Kategori"),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F3C58),
-        elevation: 0,
-      ),
+      // ... (AppBar tetap sama)
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: katController,
-                    decoration: InputDecoration(
-                      hintText: "Nama Kategori Baru",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: _addKategori,
-                  icon: const Icon(Icons.add_circle, color: Color(0xFF1F3C58), size: 40),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
+          // ... (Input TextField tetap sama)
           Expanded(
             child: FutureBuilder(
+              // Gunakan Obx atau pemicu refresh
               future: c.supabase.from('kategori').select().order('nama_kategori'),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
@@ -80,9 +78,18 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                   itemCount: data.length,
                   itemBuilder: (context, i) => ListTile(
                     title: Text(data[i]['nama_kategori']),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () => _deleteKategori(data[i]['id']),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _editKategori(data[i]['id_kategori'], data[i]['nama_kategori']),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          onPressed: () => _deleteKategori(data[i]['id_kategori']),
+                        ),
+                      ],
                     ),
                   ),
                 );

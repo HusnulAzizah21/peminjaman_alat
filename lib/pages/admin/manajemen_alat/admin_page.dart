@@ -26,25 +26,8 @@ class _AdminBerandaPageState extends State<AdminPage> {
     try {
       c = Get.find<AppController>();
       isInitialized = true;
-      _fetchDynamicCategories();
     } catch (e) {
       debugPrint("Error finding AppController: $e");
-    }
-  }
-
-  Future<void> _fetchDynamicCategories() async {
-    try {
-      final response = await c.supabase.from('kategori').select('nama_kategori');
-      if (response != null) {
-        List<String> fetchedCats = (response as List)
-            .map((item) => item['nama_kategori'].toString())
-            .toList();
-        setState(() {
-          dynamicCategories = ["Semua", ...fetchedCats];
-        });
-      }
-    } catch (e) {
-      debugPrint("Gagal fetch kategori: $e");
     }
   }
 
@@ -59,7 +42,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
             children: [
               const Text("Hapus", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
               const SizedBox(height: 10),
-              const Text("Anda yakin ingin menghapusnya?", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF1F3C58))),
+              Text("Anda yakin ingin menghapus $name?", textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF1F3C58))),
               const SizedBox(height: 25),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -116,6 +99,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
       drawer: const AdminDrawer(currentPage: 'Manajemen Alat'),
       body: Column(
         children: [
+          // --- SEARCH BAR ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: TextField(
@@ -133,42 +117,62 @@ class _AdminBerandaPageState extends State<AdminPage> {
             ),
           ),
           
-          SizedBox(
-            height: 45,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              itemCount: dynamicCategories.length,
-              itemBuilder: (context, index) {
-                bool isSelected = selectedCategory == dynamicCategories[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: InkWell(
-                    onTap: () => setState(() => selectedCategory = dynamicCategories[index]),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF1F3C58) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        dynamicCategories[index],
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : const Color(0xFF1F3C58),
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          // --- KATEGORI HORIZONTAL (AUTO REFRESH) ---
+          Obx(() {
+            // Memicu rebuild saat refreshKategori di controller berubah
+            c.refreshKategori.value; 
+
+            return FutureBuilder(
+              future: c.supabase.from('kategori').select('nama_kategori').order('nama_kategori'),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  List<String> fetchedCats = (snapshot.data as List)
+                      .map((item) => item['nama_kategori'].toString())
+                      .toList();
+                  dynamicCategories = ["Semua", ...fetchedCats];
+                }
+
+                return SizedBox(
+                  height: 45,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    itemCount: dynamicCategories.length,
+                    itemBuilder: (context, index) {
+                      bool isSelected = selectedCategory == dynamicCategories[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: InkWell(
+                          onTap: () => setState(() => selectedCategory = dynamicCategories[index]),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFF1F3C58) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              dynamicCategories[index],
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : const Color(0xFF1F3C58),
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 );
               },
-            ),
-          ),
+            );
+          }),
 
+          // --- GRID ALAT (STREAM) ---
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
+              // Menggunakan stream agar alat yang berubah kategori atau stok langsung update otomatis
               stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
@@ -177,9 +181,17 @@ class _AdminBerandaPageState extends State<AdminPage> {
                 final data = snapshot.data ?? [];
                 final filteredItems = data.where((item) {
                   final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
-                  final String katDb = (item['nama_kategori'] ?? "").toString().trim().toLowerCase();
-                  return nama.contains(searchQuery.toLowerCase()) && (selectedCategory == "Semua" || katDb == selectedCategory.toLowerCase());
+                  final String katDb = (item['nama_kategori'] ?? "Tanpa Kategori").toString().trim().toLowerCase();
+                  
+                  bool matchesSearch = nama.contains(searchQuery.toLowerCase());
+                  bool matchesCategory = selectedCategory == "Semua" || katDb == selectedCategory.toLowerCase();
+                  
+                  return matchesSearch && matchesCategory;
                 }).toList();
+
+                if (filteredItems.isEmpty) {
+                  return const Center(child: Text("Tidak ada alat ditemukan"));
+                }
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(20),
@@ -199,14 +211,13 @@ class _AdminBerandaPageState extends State<AdminPage> {
       ),
 
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 70.0), // Sesuaikan angka ini (misal: 20 atau 30) untuk menaikkan tombol
+        padding: const EdgeInsets.only(bottom: 70.0), 
         child: PopupMenuButton<String>(
           offset: const Offset(0, -110),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           onSelected: (value) async {
             if (value == 'alat') {
-              final result = await Get.to(() => const TambahAlatPage());
-              if (result == true) setState(() {});
+              Get.to(() => const TambahAlatPage());
             } else if (value == 'kategori') {
               Get.to(() => const KelolaKategoriPage());
             }
@@ -244,6 +255,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
   Widget _buildAdminToolCard(BuildContext context, Map<String, dynamic> item) {
     int stok = item['stok_total'] ?? 0;
     bool isKosong = stok <= 0;
+    String kategori = item['nama_kategori'] ?? "Tanpa Kategori";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,8 +307,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
                       InkWell(
                         onTap: () async {
                           Navigator.pop(context);
-                          final res = await Get.to(() => EditAlatPage(alat: item));
-                          if (res == true) setState(() {});
+                          Get.to(() => EditAlatPage(alat: item));
                         },
                         child: Container(
                           padding: const EdgeInsets.all(6),
@@ -308,7 +319,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
                       InkWell(
                         onTap: () {
                           Navigator.pop(context);
-                          _confirmDelete(item['id'], item['nama_alat']);
+                          _confirmDelete(item['id_alat'], item['nama_alat']);
                         },
                         child: const Icon(Icons.delete, size: 20, color: Color(0xFF1F3C58)),
                       ),
@@ -319,7 +330,8 @@ class _AdminBerandaPageState extends State<AdminPage> {
             ),
           ],
         ),
-        Text(item['nama_kategori'] ?? "Kategori", style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        // Menampilkan kategori (akan "Tanpa Kategori" jika id_kategori di database null)
+        Text(kategori, style: const TextStyle(color: Colors.grey, fontSize: 10)),
         const SizedBox(height: 2),
         Text(
           isKosong ? "Kosong" : "$stok unit",

@@ -8,6 +8,12 @@ import '../login_page.dart';
 class AppController extends GetxController {
   final supabase = Supabase.instance.client;
 
+  var refreshKategori = 0.obs;
+
+  void triggerRefresh() {
+    refreshKategori.value++;
+  }
+
   var isLoading = false.obs;
   var emailError = ''.obs;
   var passwordError = ''.obs;
