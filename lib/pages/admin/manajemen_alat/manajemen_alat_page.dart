@@ -173,39 +173,48 @@ class _AdminBerandaPageState extends State<AdminPage> {
               },
             );
           }),
-
           // --- GRID ALAT ---
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return const Center(child: Text("Koneksi terputus..."));
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                
-                final data = snapshot.data ?? [];
-                final filteredItems = data.where((item) {
-                  final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
-                  final String katDb = (item['nama_kategori'] ?? "Tanpa Kategori").toString().trim().toLowerCase();
-                  bool matchesSearch = nama.contains(searchQuery.toLowerCase());
-                  bool matchesCategory = selectedCategory == "Semua" || katDb == selectedCategory.toLowerCase();
-                  return matchesSearch && matchesCategory;
-                }).toList();
+            child: Obx(() {
+              // TAMBAHKAN BARIS INI: 
+              // Ini akan memicu StreamBuilder untuk membangun ulang UI 
+              // setiap kali c.triggerRefresh() dipanggil di halaman Kategori.
+              c.refreshKategori.value; 
 
-                if (filteredItems.isEmpty) return const Center(child: Text("Tidak ada alat ditemukan"));
+              return StreamBuilder<List<Map<String, dynamic>>>(
+                stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return const Center(child: Text("Koneksi terputus..."));
+                  
+                  // MENGHAPUS LOADING MUTER-MUTER (CircularProgressIndicator)
+                  // Sesuai permintaan Anda, kita tampilkan SizedBox kosong saat loading awal
+                  if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+                  
+                  final data = snapshot.data ?? [];
+                  final filteredItems = data.where((item) {
+                    final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
+                    final String katDb = (item['nama_kategori'] ?? "Tanpa Kategori").toString().trim().toLowerCase();
+                    bool matchesSearch = nama.contains(searchQuery.toLowerCase());
+                    bool matchesCategory = selectedCategory == "Semua" || katDb == selectedCategory.toLowerCase();
+                    return matchesSearch && matchesCategory;
+                  }).toList();
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(20),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 15,
-                    mainAxisSpacing: 25,
-                    childAspectRatio: 0.75,
-                  ),
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, index) => _buildAdminToolCard(context, filteredItems[index]),
-                );
-              },
-            ),
+                  if (filteredItems.isEmpty) return const Center(child: Text("Tidak ada alat ditemukan"));
+
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(20),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 15,
+                      mainAxisSpacing: 25,
+                      childAspectRatio: 0.75,
+                    ),
+                    itemCount: filteredItems.length,
+                    itemBuilder: (context, index) => _buildAdminToolCard(context, filteredItems[index]),
+                  );
+                },
+              );
+            }),
           ),
         ],
       ),
