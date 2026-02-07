@@ -12,68 +12,102 @@ class TambahPenggunaPage extends StatefulWidget {
 class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
   final c = Get.find<AppController>();
   final _formKey = GlobalKey<FormState>();
+  
   final nameC = TextEditingController();
   final emailC = TextEditingController();
   final passC = TextEditingController();
   String? selectedRole;
   bool isLoading = false;
+  bool obscurePass = true;
+
+  final Color primaryColor = const Color(0xFF1F3C58);
+
+  void _simpanData() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => isLoading = true);
+      try {
+        // 1. Daftar ke Auth agar bisa login
+        final authRes = await c.supabase.auth.signUp(
+          email: emailC.text.trim(),
+          password: passC.text.trim(),
+        );
+
+        if (authRes.user != null) {
+          // 2. Simpan ke tabel public agar password bisa DITAMPILKAN
+          await c.supabase.from('users').insert({
+            'id_user': authRes.user!.id,
+            'nama': nameC.text.trim(),
+            'email': emailC.text.trim(),
+            'password': passC.text.trim(), // Teks asli disimpan di sini
+            'role': selectedRole,
+          });
+
+          Get.back();
+          Get.snackbar("Sukses", "User berhasil ditambahkan", backgroundColor: Colors.white);
+        }
+      } catch (e) {
+        Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+      } finally {
+        setState(() => isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF1F3C58);
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text("Tambah Pengguna"), centerTitle: true, foregroundColor: primaryColor, backgroundColor: Colors.white, elevation: 0),
-      body: Padding(
-        padding: const EdgeInsets.all(25),
+      appBar: AppBar(title: const Text("Tambah Pengguna"), centerTitle: true),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(30),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextFormField(
-                controller: nameC,
-                decoration: InputDecoration(labelText: "Nama", border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
-                validator: (v) => v!.isEmpty ? "Nama wajib diisi" : null,
-              ),
+              _buildLabel("Nama"),
+              TextFormField(controller: nameC, decoration: _buildInputDecoration("Nama"), validator: (v) => v!.isEmpty ? "Wajib diisi" : null),
               const SizedBox(height: 15),
-              TextFormField(
-                controller: emailC,
-                decoration: InputDecoration(labelText: "Email", border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
-                validator: (v) => v!.isEmpty ? "Email wajib diisi" : null,
-              ),
+              _buildLabel("Email"),
+              TextFormField(controller: emailC, decoration: _buildInputDecoration("Email"), validator: (v) => v!.isEmpty ? "Wajib diisi" : null),
               const SizedBox(height: 15),
+              _buildLabel("Kata Sandi"),
               TextFormField(
                 controller: passC,
-                obscureText: true,
-                decoration: InputDecoration(labelText: "Password", border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
-                validator: (v) => v!.isEmpty ? "Password wajib diisi" : null,
+                obscureText: obscurePass,
+                decoration: _buildInputDecoration("Kata Sandi").copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(obscurePass ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => obscurePass = !obscurePass),
+                  ),
+                ),
+                validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
               ),
               const SizedBox(height: 15),
+              _buildLabel("Sebagai"),
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "Role", border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
+                value: selectedRole,
+                decoration: _buildInputDecoration(""),
                 items: ["Admin", "Petugas", "Peminjam"].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                onChanged: (v) => selectedRole = v,
-                validator: (v) => v == null ? "Role wajib dipilih" : null,
+                onChanged: (v) => setState(() => selectedRole = v),
+                validator: (v) => v == null ? "Wajib diisi" : null,
               ),
               const SizedBox(height: 30),
               SizedBox(
-                width: double.infinity, height: 50,
+                width: double.infinity,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
-                  onPressed: isLoading ? null : () async {
-                    if (_formKey.currentState!.validate()) {
-                      setState(() => isLoading = true);
-                      await c.supabase.from('users').insert({'nama': nameC.text, 'email': emailC.text, 'password': passC.text, 'role': selectedRole});
-                      Get.back();
-                    }
-                  },
-                  child: isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Simpan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: isLoading ? null : _simpanData,
+                  child: isLoading ? const CircularProgressIndicator() : const Text("Simpan"),
                 ),
-              )
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  // Gunakan helper decoration Anda yang sebelumnya di sini
+  InputDecoration _buildInputDecoration(String hint) => InputDecoration(hintText: hint, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)));
+  Widget _buildLabel(String t) => Text(t, style: const TextStyle(fontWeight: FontWeight.bold));
 }
