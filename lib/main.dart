@@ -12,7 +12,7 @@ void main() async {
     url: 'https://jzlbnuarsuoyffzbcter.supabase.co',
     anonKey: 'sb_publishable_kbx50_AKpUfDD2UEjd1M1g_GrUN15Ui',
   );
-
+  Get.put(AppController());
   runApp(const MyApp());
 }
 

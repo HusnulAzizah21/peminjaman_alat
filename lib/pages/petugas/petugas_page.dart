@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '../../controllers/app_controller.dart';
+import 'drawer.dart'; // Import file drawer yang dibuat tadi
 
-class PetugasPage extends StatelessWidget {
-  const PetugasPage({super.key});
+class PetugasBerandaPage extends StatelessWidget {
+  const PetugasBerandaPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final c = Get.find<AppController>();
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Dashboard Petugas"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => c.logout(),
-          )
-        ],
+        title: const Text("Beranda Petugas"),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1F3C58),
+        elevation: 0,
       ),
+      // PANGGIL DRAWER DI SINI
+      drawer: const PetugasDrawer(currentPage: '',), 
       body: const Center(
-        child: Text("Halaman Petugas", style: TextStyle(fontSize: 20)),
+        child: Text("Konten Dashboard Petugas"),
       ),
     );
   }

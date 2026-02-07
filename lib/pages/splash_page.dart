@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_page.dart';
-import 'admin/admin_page.dart';
+import 'admin/manajemen_alat/admin_page.dart';
 import 'petugas/petugas_page.dart';
 import 'peminjam/beranda.dart';
 
@@ -50,7 +50,7 @@ class _SplashPageState extends State<SplashPage> {
         if (role == 'Admin') {
           Get.offAll(() => const AdminPage());
         } else if (role == 'Petugas') {
-          Get.offAll(() => const PetugasPage());
+          Get.offAll(() => const PetugasBerandaPage());
         } else {
           Get.offAll(() => const PeminjamPage());
         }

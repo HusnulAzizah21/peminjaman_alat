@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../pages/admin/admin_page.dart';
+import '../pages/admin/manajemen_alat/admin_page.dart';
 import '../pages/petugas/petugas_page.dart';
 import '../pages/peminjam/beranda.dart';
 import '../pages/login_page.dart';
@@ -13,69 +13,78 @@ class AppController extends GetxController {
   var passwordError = ''.obs;
 
   Future<void> login(String email, String password) async {
+    // 1. Reset error setiap kali tombol ditekan
     emailError.value = '';
     passwordError.value = '';
 
-    if (email.isEmpty) {
-      emailError.value = 'Email tidak boleh kosong';
-      return;
-    }
-    if (password.isEmpty) {
-      passwordError.value = 'Password tidak boleh kosong';
-      return;
-    }
+    // 2. Cek validasi input kosong
+    if (email.isEmpty) emailError.value = 'Email tidak boleh kosong';
+    if (password.isEmpty) passwordError.value = 'Password tidak boleh kosong';
+    if (email.isEmpty || password.isEmpty) return;
 
     try {
       isLoading.value = true;
 
-      final response = await supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = response.user;
-      if (user == null) {
-        isLoading.value = false;
-        return;
-      }
-
-      // Pastikan nama tabel sama dengan yang ada di SplashPage (Gunakan 'profiles')
-      final profile = await supabase
-          .from('users') 
-          .select()
-          .eq('id_user', user.id)
+      // 3. Pre-check: Cek apakah email terdaftar di tabel users
+      final emailCheck = await supabase
+          .from('users')
+          .select('email')
+          .eq('email', email)
           .maybeSingle();
 
-      if (profile == null) {
-        Get.snackbar("Error", "Data profil tidak ditemukan.");
-        isLoading.value = false;
-        return;
-      }
+      // 4. Proses Login ke Supabase Auth
+      try {
+        await supabase.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
 
-      final role = profile['role'];
+        // Jika berhasil login, ambil data profil untuk navigasi role
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          final profile = await supabase
+              .from('users')
+              .select()
+              .eq('id_user', user.id)
+              .maybeSingle();
 
-      if (role == 'Admin') {
-        Get.offAll(() => const AdminPage());
-      } else if (role == 'Petugas') {
-        Get.offAll(() => const PetugasPage());
-      } else {
-        Get.offAll(() => const PeminjamPage());
-      }
-    } on AuthException catch (e) {
-      if (e.message.toLowerCase().contains('invalid login credentials')) {
-        emailError.value = 'Email atau kata sandi salah';
-      } else {
-        Get.snackbar("Login Gagal", e.message);
+          if (profile != null) {
+            final role = profile['role'];
+            if (role == 'Admin') {
+              Get.offAll(() => const AdminPage());
+            } else if (role == 'Petugas') {
+              Get.offAll(() => const PetugasBerandaPage());
+            } else {
+              Get.offAll(() => const PeminjamPage());
+            }
+          }
+        }
+      } on AuthException catch (e) {
+        // Logika validasi jika login gagal
+        if (e.message.toLowerCase().contains('invalid login credentials')) {
+          if (emailCheck == null) {
+            emailError.value = 'Email tidak terdaftar';
+            passwordError.value = 'Kata sandi salah';
+          } else {
+            passwordError.value = 'Kata sandi salah';
+          }
+        } else {
+          Get.snackbar("Login Gagal", e.message);
+        }
       }
     } catch (e) {
-      Get.snackbar("Error", "Terjadi kesalahan: $e");
+      Get.snackbar("Error", "Terjadi kesalahan sistem: $e");
     } finally {
       isLoading.value = false;
     }
   }
 
   Future<void> logout() async {
-    await supabase.auth.signOut();
-    Get.offAll(() => LoginPage());
+    try {
+      await supabase.auth.signOut();
+      Get.offAll(() => LoginPage());
+    } catch (e) {
+      Get.snackbar("Error", "Gagal Logout: $e");
+    }
   }
 }

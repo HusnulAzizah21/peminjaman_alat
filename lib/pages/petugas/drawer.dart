@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../controllers/app_controller.dart'; 
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_alat/admin_page.dart';
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_user/manajemen_pengguna.dart';
+import '../../controllers/app_controller.dart';
 
-class AdminDrawer extends StatelessWidget {
+class PetugasDrawer extends StatelessWidget {
   final String currentPage;
-  const AdminDrawer({super.key, required this.currentPage});
+  const PetugasDrawer({super.key, required this.currentPage});
 
   @override
   Widget build(BuildContext context) {
-    // Pastikan AppController sudah di-put di main atau page sebelumnya
     final c = Get.find<AppController>();
-    
     final user = c.supabase.auth.currentUser;
-    final String userEmail = user?.email ?? "user@gmail.com";
-    final String userName = userEmail.split('@')[0].capitalizeFirst ?? "User";
+    final String userEmail = user?.email ?? "monica@gmail.com";
+    final String userName = userEmail.split('@')[0].capitalizeFirst ?? "Monica";
 
     return Drawer(
+      backgroundColor: Colors.white,
       child: Column(
         children: [
           // HEADER PROFILE
@@ -56,7 +53,6 @@ class AdminDrawer extends StatelessWidget {
               ],
             ),
           ),
-
           // LIST MENU
           Expanded(
             child: ListView(
@@ -65,46 +61,31 @@ class AdminDrawer extends StatelessWidget {
                 _buildMenuItem(
                   icon: Icons.home,
                   title: "Beranda",
-                  isActive: currentPage == 'Beranda',
-                  onTap: () => Get.offNamed('/admin-beranda'),
+                  isActive: currentPage == 'beranda',
+                  onTap: () => Get.offAllNamed('/petugas-beranda'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.inventory_2,
-                  title: "Manajemen Alat",
-                  isActive: currentPage == 'Manajemen Alat',
-                  onTap: () {
-                    Get.back();
-                    Get.off(() => const AdminPage()); 
-                  },
+                  icon: Icons.check_circle,
+                  title: "Persetujuan",
+                  isActive: currentPage == 'persetujuan',
+                  onTap: () => Get.offAllNamed('/persetujuan'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.assignment,
-                  title: "Data Peminjaman",
-                  isActive: currentPage == 'Data Peminjaman',
-                  onTap: () => Get.offNamed('/data-peminjaman'),
+                  icon: Icons.assignment_return,
+                  title: "Pengembalian",
+                  isActive: currentPage == 'pengembalian',
+                  onTap: () => Get.offAllNamed('/pengembalian'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.person,
-                  title: "Manajemen Pengguna",
-                  isActive: currentPage == 'Manajemen Pengguna',
-                  onTap: () {
-                    Get.back();
-                    Get.off(() => const ManajemenPenggunaPage()); 
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.history,
-                  title: "Log Aktivitas",
-                  isActive: currentPage == 'Log Aktivitas',
-                  onTap: () => Get.offNamed('/log-aktivitas'),
+                  icon: Icons.bar_chart,
+                  title: "Laporan",
+                  isActive: currentPage == 'laporan',
+                  onTap: () => Get.offAllNamed('/laporan'),
                 ),
                 _buildMenuItem(
                   icon: Icons.logout,
                   title: "Keluar",
-                  onTap: () {
-                    Get.back(); 
-                    _showLogoutDialog(c);
-                  },
+                  onTap: () => _showLogoutDialog(context, c),
                 ),
               ],
             ),
@@ -114,6 +95,7 @@ class AdminDrawer extends StatelessWidget {
     );
   }
 
+  // HELPER DENGAN EFEK AKTIF
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
@@ -121,11 +103,10 @@ class AdminDrawer extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     const Color primaryColor = Color(0xFF1F3C58);
-    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isActive ? primaryColor.withOpacity(0.1) : Colors.transparent, 
+        color: isActive ? primaryColor.withOpacity(0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -148,20 +129,48 @@ class AdminDrawer extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(AppController c) {
-    Get.dialog(
-      AlertDialog(
+  void _showLogoutDialog(BuildContext context, AppController c) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Keluar", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.bold)),
-        content: const Text("Anda yakin ingin keluar?"),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text("Batal")),
-          ElevatedButton(
-            onPressed: () => c.logout(),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1F3C58)),
-            child: const Text("Ya", style: TextStyle(color: Colors.white)),
+        child: Padding(
+          padding: const EdgeInsets.all(25),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Keluar", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
+              const SizedBox(height: 15),
+              const Text("Anda yakin ingin keluar dari aplikasi?", textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Color(0xFF1F3C58))),
+              const SizedBox(height: 25),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF1F3C58)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                      child: const Text("Batal", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => c.logout(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F3C58),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                      child: const Text("Ya", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
