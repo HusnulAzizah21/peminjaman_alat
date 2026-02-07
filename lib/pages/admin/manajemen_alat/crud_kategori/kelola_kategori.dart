@@ -14,7 +14,56 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
   final katController = TextEditingController();
   final Color primaryColor = const Color(0xFF1F3C58);
 
-  // --- DIALOG VALIDASI HAPUS ---
+  bool _isEditing = false;
+  int? _selectedKategoriId;
+
+  // --- RESET MODE ---
+  void _resetMode() {
+    setState(() {
+      _isEditing = false;
+      _selectedKategoriId = null;
+      katController.clear();
+    });
+  }
+
+  // --- MODE EDIT ---
+  void _setEditMode(int id, String currentName) {
+    setState(() {
+      _isEditing = true;
+      _selectedKategoriId = id;
+      katController.text = currentName;
+    });
+  }
+
+  // --- FUNGSI SIMPAN (TAMBAH & UPDATE) ---
+  Future<void> _simpanKategori() async {
+    if (katController.text.isEmpty) return;
+    
+    try {
+      if (_isEditing) {
+        await c.supabase
+            .from('kategori')
+            .update({'nama_kategori': katController.text})
+            .eq('id_kategori', _selectedKategoriId!);
+        
+        Get.snackbar("Sukses", "Kategori diperbarui", backgroundColor: Colors.white);
+      } else {
+        await c.supabase
+            .from('kategori')
+            .insert({'nama_kategori': katController.text});
+        
+        Get.snackbar("Sukses", "Kategori ditambahkan", backgroundColor: Colors.white);
+      }
+      
+      // TRIGGER REFRESH: Memberitahu AdminPage untuk update list horizontal
+      c.triggerRefresh(); 
+      _resetMode();
+    } catch (e) {
+      Get.snackbar("Error", "Gagal menyimpan: $e", backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  // --- DIALOG HAPUS ---
   void _confirmDeleteKategori(int id, String name) {
     Get.dialog(
       Dialog(
@@ -24,42 +73,32 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Hapus", 
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
+              const Text("Hapus", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
               const SizedBox(height: 10),
-              Text("Anda yakin ingin menghapus kategori '$name'?", 
-                textAlign: TextAlign.center, 
-                style: const TextStyle(color: Color(0xFF1F3C58))),
+              Text("Hapus kategori '$name'?", textAlign: TextAlign.center),
               const SizedBox(height: 25),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   OutlinedButton(
                     onPressed: () => Get.back(),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: primaryColor),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 30),
-                    ),
-                    child: Text("Batal", style: TextStyle(color: primaryColor)),
+                    child: const Text("Batal"),
                   ),
                   ElevatedButton(
                     onPressed: () async {
                       try {
-                        await c.supabase.from('kategori').delete().eq('id', id);
+                        await c.supabase.from('kategori').delete().eq('id_kategori', id);
+                        
+                        c.triggerRefresh(); // Refresh AdminPage
                         Get.back();
-                        setState(() {});
+                        _resetMode(); // Refresh list lokal
                         Get.snackbar("Sukses", "Kategori dihapus", backgroundColor: Colors.white);
                       } catch (e) {
                         Get.back();
-                        Get.snackbar("Gagal", "Kategori masih digunakan", backgroundColor: Colors.red, colorText: Colors.white);
+                        Get.snackbar("Gagal", "Kategori masih digunakan alat lain", backgroundColor: Colors.red, colorText: Colors.white);
                       }
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                     child: const Text("Ya", style: TextStyle(color: Colors.white)),
                   ),
                 ],
@@ -71,24 +110,12 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
     );
   }
 
-  Future<void> _addKategori() async {
-    if (katController.text.isEmpty) return;
-    try {
-      await c.supabase.from('kategori').insert({'nama_kategori': katController.text});
-      katController.clear();
-      setState(() {});
-      Get.snackbar("Sukses", "Kategori berhasil ditambahkan", backgroundColor: Colors.white);
-    } catch (e) {
-      Get.snackbar("Error", "Gagal: $e", backgroundColor: Colors.red, colorText: Colors.white);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Tambah Kategori", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_isEditing ? "Edit Kategori" : "Tambah Kategori", style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: primaryColor,
         elevation: 0,
@@ -98,71 +125,65 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
         padding: const EdgeInsets.symmetric(horizontal: 30),
         child: Column(
           children: [
-            const SizedBox(height: 10),
-            // DAFTAR KATEGORI (List dengan divider seperti di gambar)
             Expanded(
               child: FutureBuilder(
                 future: c.supabase.from('kategori').select().order('nama_kategori'),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                   final data = snapshot.data as List? ?? [];
                   return ListView.builder(
                     itemCount: data.length,
-                    itemBuilder: (context, i) => Column(
-                      children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(data[i]['nama_kategori'], 
-                            style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600)),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete, color: primaryColor, size: 20),
-                            onPressed: () => _confirmDeleteKategori(data[i]['id'], data[i]['nama_kategori']),
+                    itemBuilder: (context, i) {
+                      final item = data[i];
+                      return Column(
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(item['nama_kategori'], style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.edit, color: primaryColor, size: 20),
+                                  onPressed: () => _setEditMode(item['id_kategori'], item['nama_kategori']),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                  onPressed: () => _confirmDeleteKategori(item['id_kategori'], item['nama_kategori']),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const Divider(thickness: 1, height: 1),
-                      ],
-                    ),
+                          const Divider(thickness: 1, height: 1),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
             ),
-            
-            const SizedBox(height: 20),
-            // INPUT FIELD (Rounded/Lonjong)
+            const SizedBox(height: 10),
+            if (_isEditing)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: _resetMode, child: const Text("Batal Edit", style: TextStyle(color: Colors.red))),
+              ),
             TextField(
               controller: katController,
               textAlign: TextAlign.center,
               decoration: InputDecoration(
-                hintText: "Masukkan nama kategori",
-                hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(color: primaryColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
-                ),
+                hintText: "Nama kategori",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
               ),
             ),
-            
             const SizedBox(height: 15),
-            // TOMBOL TAMBAH (Lebar dan Rounded)
             SizedBox(
               width: double.infinity,
               height: 45,
               child: ElevatedButton(
-                onPressed: _addKategori,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  elevation: 5,
-                ),
-                child: const Text("Tambah", 
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onPressed: _simpanKategori,
+                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
+                child: Text(_isEditing ? "Simpan Perubahan" : "Tambah", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 40),

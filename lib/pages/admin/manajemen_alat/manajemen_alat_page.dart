@@ -31,7 +31,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
     }
   }
 
-  void _confirmDelete(dynamic id, String name) {
+void _confirmDelete(dynamic id, String name) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -40,9 +40,12 @@ class _AdminBerandaPageState extends State<AdminPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Hapus", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
+              const Text("Hapus", 
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
               const SizedBox(height: 10),
-              Text("Anda yakin ingin menghapus $name?", textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF1F3C58))),
+              Text("Anda yakin ingin menghapus $name?", 
+                textAlign: TextAlign.center, 
+                style: const TextStyle(color: Color(0xFF1F3C58))),
               const SizedBox(height: 25),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -58,9 +61,29 @@ class _AdminBerandaPageState extends State<AdminPage> {
                   ),
                   ElevatedButton(
                     onPressed: () async {
-                      await c.supabase.from('alat').delete().eq('id_alat', id);
-                      Get.back();
-                      Get.snackbar("Sukses", "Alat berhasil dihapus", backgroundColor: Colors.white);
+                      try {
+                        // 1. Jalankan proses hapus di Supabase
+                        await c.supabase.from('alat').delete().eq('id_alat', id);
+                        
+                        // 2. Tutup Dialog
+                        Get.back();
+
+                        // 3. Autorefresh: Karena Anda menggunakan StreamBuilder, 
+                        // kita picu rebuild UI dengan setState kosong jika diperlukan, 
+                        // atau biarkan StreamBuilder yang menangani secara otomatis.
+                        setState(() {}); 
+
+                        Get.snackbar(
+                          "Sukses", 
+                          "Alat berhasil dihapus", 
+                          backgroundColor: const Color(0xFF1F3C58),
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM
+                        );
+                      } catch (e) {
+                        Get.back();
+                        Get.snackbar("Error", "Gagal menghapus: $e", backgroundColor: Colors.red, colorText: Colors.white);
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1F3C58),
@@ -118,56 +141,33 @@ class _AdminBerandaPageState extends State<AdminPage> {
           ),
           
           // --- KATEGORI HORIZONTAL (AUTO REFRESH) ---
-          Obx(() {
-            // Memicu rebuild saat refreshKategori di controller berubah
-            c.refreshKategori.value; 
+Obx(() {
+  // Baris ini memantau perubahan dari KelolaKategoriPage
+  c.refreshKategori.value; 
 
-            return FutureBuilder(
-              future: c.supabase.from('kategori').select('nama_kategori').order('nama_kategori'),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  List<String> fetchedCats = (snapshot.data as List)
-                      .map((item) => item['nama_kategori'].toString())
-                      .toList();
-                  dynamicCategories = ["Semua", ...fetchedCats];
-                }
-
-                return SizedBox(
-                  height: 45,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    itemCount: dynamicCategories.length,
-                    itemBuilder: (context, index) {
-                      bool isSelected = selectedCategory == dynamicCategories[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: InkWell(
-                          onTap: () => setState(() => selectedCategory = dynamicCategories[index]),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF1F3C58) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              dynamicCategories[index],
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : const Color(0xFF1F3C58),
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            );
-          }),
+  return FutureBuilder(
+    future: c.supabase.from('kategori').select('nama_kategori').order('nama_kategori'),
+    builder: (context, snapshot) {
+      if (snapshot.hasData) {
+        List<String> fetchedCats = (snapshot.data as List)
+            .map((item) => item['nama_kategori'].toString())
+            .toList();
+        dynamicCategories = ["Semua", ...fetchedCats];
+      }
+      // ... return ListView.builder Kategori Horizontal Anda ...
+      return SizedBox(
+        height: 45,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: dynamicCategories.length,
+          itemBuilder: (context, index) {
+            // ... kode UI kategori Anda ...
+          }
+        ),
+      );
+    },
+  );
+}),
 
           // --- GRID ALAT (STREAM) ---
           Expanded(

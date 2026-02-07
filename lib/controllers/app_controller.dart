@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../pages/admin/manajemen_alat/admin_page.dart';
+import '../pages/admin/manajemen_alat/manajemen_alat_page.dart';
 import '../pages/petugas/petugas_page.dart';
 import '../pages/peminjam/beranda.dart';
 import '../login_page.dart';
