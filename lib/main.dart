@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'pages/splash_page.dart';
+import 'splash_page.dart';
 import 'controllers/app_controller.dart';
 import 'package:google_fonts/google_fonts.dart';
 

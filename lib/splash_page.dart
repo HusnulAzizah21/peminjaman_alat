@@ -4,9 +4,9 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_page.dart';
-import 'admin/manajemen_alat/admin_page.dart';
-import 'petugas/petugas_page.dart';
-import 'peminjam/beranda.dart';
+import 'pages/admin/manajemen_alat/admin_page.dart';
+import 'pages/petugas/petugas_page.dart';
+import 'pages/peminjam/beranda.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -33,7 +33,6 @@ class _SplashPageState extends State<SplashPage> {
       try {
         final supabase = Supabase.instance.client;
 
-        // DIUBAH: Dari 'users' menjadi 'profiles' agar sama dengan Controller
         final profile = await supabase
             .from('users')
             .select()

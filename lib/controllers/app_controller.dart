@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../pages/admin/manajemen_alat/admin_page.dart';
 import '../pages/petugas/petugas_page.dart';
 import '../pages/peminjam/beranda.dart';
-import '../pages/login_page.dart';
+import '../login_page.dart';
 
 class AppController extends GetxController {
   final supabase = Supabase.instance.client;
@@ -17,7 +17,7 @@ class AppController extends GetxController {
     emailError.value = '';
     passwordError.value = '';
 
-    // 2. Cek validasi input kosong
+    // 2. Cek validasi input kosong (Lokal)
     if (email.isEmpty) emailError.value = 'Email tidak boleh kosong';
     if (password.isEmpty) passwordError.value = 'Password tidak boleh kosong';
     if (email.isEmpty || password.isEmpty) return;
@@ -25,21 +25,13 @@ class AppController extends GetxController {
     try {
       isLoading.value = true;
 
-      // 3. Pre-check: Cek apakah email terdaftar di tabel users
-      final emailCheck = await supabase
-          .from('users')
-          .select('email')
-          .eq('email', email)
-          .maybeSingle();
-
-      // 4. Proses Login ke Supabase Auth
+      // 3. Proses Login ke Supabase Auth
       try {
         await supabase.auth.signInWithPassword(
           email: email,
           password: password,
         );
 
-        // Jika berhasil login, ambil data profil untuk navigasi role
         final user = supabase.auth.currentUser;
         if (user != null) {
           final profile = await supabase
@@ -60,14 +52,11 @@ class AppController extends GetxController {
           }
         }
       } on AuthException catch (e) {
-        // Logika validasi jika login gagal
+        // --- LOGIKA PESAN DI BAWAH KOLOM ---
         if (e.message.toLowerCase().contains('invalid login credentials')) {
-          if (emailCheck == null) {
-            emailError.value = 'Email tidak terdaftar';
-            passwordError.value = 'Kata sandi salah';
-          } else {
-            passwordError.value = 'Kata sandi salah';
-          }
+          // Set pesan yang sama ke kedua field
+          emailError.value = 'Email atau kata sandi salah';
+          passwordError.value = 'Email atau kata sandi salah';
         } else {
           Get.snackbar("Login Gagal", e.message);
         }
