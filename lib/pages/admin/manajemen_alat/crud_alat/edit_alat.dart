@@ -20,9 +20,8 @@ class _EditAlatPageState extends State<EditAlatPage> {
   late TextEditingController nameController;
   late TextEditingController stockController;
   
-  // Perubahan: selectedCategory sekarang menampung ID atau Nama kategori
   String? selectedCategory;
-  List<String> _categories = []; // List untuk menyimpan kategori dari DB
+  List<String> _categories = []; 
   
   Uint8List? _imageBytes;
   String? _fileName;
@@ -34,11 +33,10 @@ class _EditAlatPageState extends State<EditAlatPage> {
     super.initState();
     nameController = TextEditingController(text: widget.alat['nama_alat']);
     stockController = TextEditingController(text: widget.alat['stok_total'].toString());
-    selectedCategory = widget.alat['nama_kategori']; // Default value dari data alat
+    selectedCategory = widget.alat['nama_kategori']; 
     _fetchCategories();
   }
 
-  // Ambil daftar kategori dari Supabase
   Future<void> _fetchCategories() async {
     try {
       final response = await c.supabase.from('kategori').select('nama_kategori');
@@ -84,7 +82,6 @@ class _EditAlatPageState extends State<EditAlatPage> {
         imageUrl = c.supabase.storage.from('daftar_alat').getPublicUrl(path);
       }
 
-      // Cari id_kategori berdasarkan nama yang dipilih di dropdown
       final katRes = await c.supabase
           .from('kategori')
           .select('id_kategori')
@@ -96,7 +93,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
       await c.supabase.from('alat').update({
         'nama_alat': nameController.text.trim(),
         'stok_total': int.parse(stockController.text.trim()),
-        'id_kategori': idKategori, // Gunakan ID kategori hasil pencarian
+        'id_kategori': idKategori, 
         'gambar_url': imageUrl,
       }).eq('id_alat', widget.alat['id_alat']);
 
@@ -127,6 +124,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
           child: Form(
             key: _formKey,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, // Memastikan semua Column internal mulai dari kiri
               children: [
                 const SizedBox(height: 20),
                 Row(
@@ -147,37 +145,39 @@ class _EditAlatPageState extends State<EditAlatPage> {
                 ),
                 const SizedBox(height: 40),
 
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        height: 120,
-                        width: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
+                Center( // Tetap di tengah untuk bagian gambar
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          height: 120,
+                          width: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: _imageBytes != null
+                                ? Image.memory(_imageBytes!, fit: BoxFit.contain) 
+                                : (widget.alat['gambar_url'] != null
+                                    ? Image.network(widget.alat['gambar_url'], fit: BoxFit.contain) 
+                                    : const Icon(Icons.monitor, size: 80)),
+                          ),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: _imageBytes != null
-                              ? Image.memory(_imageBytes!, fit: BoxFit.contain) 
-                              : (widget.alat['gambar_url'] != null
-                                  ? Image.network(widget.alat['gambar_url'], fit: BoxFit.contain) 
-                                  : const Icon(Icons.monitor, size: 80)),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1F3C58),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1F3C58),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
@@ -186,10 +186,12 @@ class _EditAlatPageState extends State<EditAlatPage> {
                 TextFormField(
                   controller: nameController,
                   decoration: _inputDecoration("Monitor"),
-                  validator: (val) => val == null || val.isEmpty ? "Wajib diisi" : null,
+                  validator: (val) => val == null || val.isEmpty ? "Kolom wajib diisi" : null,
                 ),
                 const SizedBox(height: 20),
+                
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // DROPDOWN KATEGORI
                     Expanded(
@@ -212,7 +214,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
                               });
                             },
                             decoration: _inputDecoration("Pilih Kategori"),
-                            validator: (val) => val == null ? "Wajib pilih" : null,
+                            validator: (val) => val == null ? "Kolom wajib diisi" : null,
                             dropdownColor: Colors.white,
                             icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1F3C58)),
                           ),
@@ -220,6 +222,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
                       ),
                     ),
                     const SizedBox(width: 15),
+                    // KOLOM STOK
                     Expanded(
                       flex: 1,
                       child: Column(
@@ -228,10 +231,19 @@ class _EditAlatPageState extends State<EditAlatPage> {
                           _buildLabel("Stok"),
                           TextFormField(
                             controller: stockController,
-                            textAlign: TextAlign.center,
+                            textAlign: TextAlign.start, // Rata kiri untuk teks input
                             keyboardType: TextInputType.number,
                             decoration: _inputDecoration("0"),
-                            validator: (val) => val == null || val.isEmpty ? "Error" : null,
+                            validator: (val) {
+                              if (val == null || val.isEmpty) {
+                                return "Kolom wajib diisi!";
+                              }
+                              // Regex untuk memastikan hanya angka yang dimasukkan
+                              if (!RegExp(r'^[0-9]+$').hasMatch(val)) {
+                                return "Masukkan angka!";
+                              }
+                              return null;
+                            },
                           ),
                         ],
                       ),
@@ -251,6 +263,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
                     child: const Text("Simpan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -277,6 +290,14 @@ class _EditAlatPageState extends State<EditAlatPage> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(25),
         borderSide: const BorderSide(color: Color(0xFF1F3C58), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(25),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(25),
+        borderSide: const BorderSide(color: Colors.red, width: 2),
       ),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
     );
