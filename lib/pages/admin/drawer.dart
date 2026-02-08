@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/app_controller.dart'; 
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_alat/manajemen_alat_page.dart';
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_user/manajemen_pengguna.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_alat/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_user/halaman_utama.dart';
 
 class AdminDrawer extends StatelessWidget {
   final String currentPage;

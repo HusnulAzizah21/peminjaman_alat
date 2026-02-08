@@ -1,7 +1,7 @@
 import 'package:aplikasi_peminjamanbarang/controllers/app_controller.dart';
-import 'package:aplikasi_peminjamanbarang/pages/peminjam/beranda.dart';
-import 'package:aplikasi_peminjamanbarang/pages/peminjam/peminjaman.dart';
-import 'package:aplikasi_peminjamanbarang/pages/peminjam/riwayat.dart';
+import 'package:aplikasi_peminjamanbarang/pages/peminjam/beranda/beranda.dart';
+import 'package:aplikasi_peminjamanbarang/pages/peminjam/pengajuan/peminjaman.dart';
+import 'package:aplikasi_peminjamanbarang/pages/peminjam/riwayat/riwayat.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../controllers/app_controller.dart';
-import 'drawer.dart';
+import '../../../controllers/app_controller.dart';
+import '../drawer.dart';
 
 class PeminjamPage extends StatefulWidget {
   const PeminjamPage({super.key});
