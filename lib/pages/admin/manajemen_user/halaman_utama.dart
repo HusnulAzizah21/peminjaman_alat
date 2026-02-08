@@ -27,35 +27,28 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
     _loadUsers();
   }
 
-  // 1. Fungsi Utama Load Data (Dipanggil berulang kali untuk Refresh)
+  // 1. Fungsi Load Data (Pusat Refresh)
   Future<void> _loadUsers() async {
-    if (!mounted) return;
     setState(() => isLoading = true);
     try {
       final response = await c.supabase
           .from('users')
           .select('*')
-          .order('created_at', ascending: false);
+          .order('nama', ascending: true); // Urutkan berdasarkan nama
       
-      if (mounted) {
-        setState(() {
-          usersList = List<Map<String, dynamic>>.from(response);
-          isLoading = false;
-        });
-      }
+      setState(() {
+        usersList = List<Map<String, dynamic>>.from(response);
+        isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() => isLoading = false);
-        Get.snackbar("Error", "Gagal memuat data: $e", backgroundColor: Colors.red, colorText: Colors.white);
-      }
+      setState(() => isLoading = false);
+      Get.snackbar("Error", "Gagal memuat data: $e", 
+          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
-  // 2. Fungsi Hapus dengan Auto-Refresh
+  // 2. Fungsi Hapus User
   void _deleteUser(Map<String, dynamic> user) {
-    final String idField = _getIdField(user);
-    final String userId = user[idField].toString();
-
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -64,22 +57,24 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
         actions: [
           TextButton(onPressed: () => Get.back(), child: const Text("Batal")),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Get.back(); // Tutup dialog
+              Get.back();
               setState(() => isLoading = true);
               try {
-                await c.supabase.from('users').delete().eq(idField, userId);
+                // Gunakan id_user sesuai struktur tabelmu
+                await c.supabase.from('users').delete().eq('id_user', user['id_user']);
                 
-                // --- KUNCI REFRESH ---
+                // Refresh list setelah hapus
                 await _loadUsers(); 
-                
-                Get.snackbar("Sukses", "Data berhasil dihapus", backgroundColor: Colors.green, colorText: Colors.white);
+                Get.snackbar("Sukses", "Data berhasil dihapus", 
+                    backgroundColor: Colors.green, colorText: Colors.white);
               } catch (e) {
                 setState(() => isLoading = false);
-                Get.snackbar("Error", "Gagal menghapus: $e", backgroundColor: Colors.red, colorText: Colors.white);
+                Get.snackbar("Error", "Gagal menghapus: $e", 
+                    backgroundColor: Colors.red, colorText: Colors.white);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text("Hapus", style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -87,29 +82,25 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
     );
   }
 
-  // 3. Helper ID Field
-  String _getIdField(Map<String, dynamic> user) {
-    if (user.containsKey('id_user')) return 'id_user';
-    return 'id';
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Filter data di dalam build agar responsif terhadap pencarian & chip
+    // Filter pencarian dan role secara real-time
     final filteredUsers = usersList.where((user) {
       final String name = (user['nama'] ?? "").toString().toLowerCase();
       final String email = (user['email'] ?? "").toString().toLowerCase();
       final String role = (user['role'] ?? "").toString();
       
       bool matchesRole = selectedRole == 'Semua' || role == selectedRole;
-      bool matchesSearch = name.contains(searchQuery.toLowerCase()) || email.contains(searchQuery.toLowerCase());
+      bool matchesSearch = name.contains(searchQuery.toLowerCase()) || 
+                           email.contains(searchQuery.toLowerCase());
       return matchesRole && matchesSearch;
     }).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Manajemen Pengguna", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text("Manajemen Pengguna", 
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
         backgroundColor: Colors.white,
         foregroundColor: primaryColor,
@@ -132,7 +123,7 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
             ),
           ),
 
-          // FILTER CHIPS
+          // FILTER CHIPS (Role)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -155,10 +146,10 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
 
           const SizedBox(height: 10),
 
-          // LIST DATA
+          // LIST DATA USER
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _loadUsers, // Tarik bawah untuk refresh manual
+              onRefresh: _loadUsers,
               child: isLoading && usersList.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : filteredUsers.isEmpty
@@ -174,15 +165,17 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: primaryColor.withOpacity(0.1),
-                                  child: Text(user['nama']?[0].toUpperCase() ?? "?"),
+                                  child: Text(user['nama']?[0].toUpperCase() ?? "?", 
+                                      style: TextStyle(color: primaryColor)),
                                 ),
-                                title: Text(user['nama'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                title: Text(user['nama'] ?? "-", 
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: Text("${user['email']}\nRole: ${user['role']}"),
                                 isThreeLine: true,
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (val) async {
                                     if (val == 'edit') {
-                                      // --- KUNCI REFRESH SETELAH EDIT ---
+                                      // Ambil sinyal 'true' dari EditPenggunaPage
                                       final result = await Get.to(() => EditPenggunaPage(userData: user));
                                       if (result == true) _loadUsers(); 
                                     } else if (val == 'delete') {
@@ -191,7 +184,8 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
                                   },
                                   itemBuilder: (context) => [
                                     const PopupMenuItem(value: 'edit', child: Text("Edit")),
-                                    const PopupMenuItem(value: 'delete', child: Text("Hapus", style: TextStyle(color: Colors.red))),
+                                    const PopupMenuItem(value: 'delete', 
+                                        child: Text("Hapus", style: TextStyle(color: Colors.red))),
                                   ],
                                 ),
                               ),
@@ -203,18 +197,16 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
         ],
       ),
       
-      // 4. FAB TAMBAH DENGAN AUTO-REFRESH
+      // FLOATING ACTION BUTTON (TAMBAH USER)
       floatingActionButton: FloatingActionButton(
+        backgroundColor: primaryColor,
         onPressed: () async {
-          // 1. Tunggu hasil saat kembali dari halaman tambah
+          // Ambil sinyal 'true' dari TambahPenggunaPage
           final result = await Get.to(() => const TambahPenggunaPage());
-          
-          // 2. Jika result bernilai true, jalankan fungsi load data
           if (result == true) {
-            _loadUsers(); 
+            _loadUsers(); // Refresh daftar jika berhasil tambah
           }
         },
-        backgroundColor: primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );

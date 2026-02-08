@@ -39,44 +39,43 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
     super.dispose();
   }
 
-  // FUNGSI UTAMA: Update hanya ke tabel public.users
-  Future<void> _updateData() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => isLoading = true);
+Future<void> _updateData() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() => isLoading = true);
 
-      try {
-        final userId = widget.userData['id_user']; 
+    try {
+      final userId = widget.userData['id_user']; 
 
-        // Update data di database
-        await c.supabase.from('users').update({
-          'nama': nameC.text.trim(),
-          'email': emailC.text.trim(),
-          'password': passC.text.trim(), // Password disimpan teks asli agar bisa dilihat lagi
-          'role': selectedRole,
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id_user', userId);
+      // INI YANG KURANG: Perintah untuk kirim data ke Supabase
+      await c.supabase.from('users').update({
+        'nama': nameC.text.trim(),
+        'email': emailC.text.trim(),
+        'password': passC.text.trim(),
+        'role': selectedRole,
+      }).eq('id_user', userId); // Pastikan id_user cocok
 
-        if (mounted) {
-          Get.back(result: true); // Kembali dan beri sinyal untuk refresh list
-          Get.snackbar(
-            "Sukses",
-            "Data pengguna berhasil diperbarui",
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
-        }
-      } catch (e) {
+      if (mounted) {
+        // result: true digunakan agar halaman manajemen_pengguna tahu dia harus refresh data
+        Get.back(result: true); 
         Get.snackbar(
-          "Error",
-          "Gagal memperbarui: ${e.toString()}",
-          backgroundColor: Colors.red,
+          "Sukses",
+          "Data pengguna berhasil diperbarui",
+          backgroundColor: Colors.green,
           colorText: Colors.white,
         );
-      } finally {
-        if (mounted) setState(() => isLoading = false);
       }
+    } catch (e) {
+      Get.snackbar(
+        "Error",
+        "Gagal memperbarui: ${e.toString()}",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

@@ -40,56 +40,58 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
     }
   }
 
-  // --- SIMPAN OTOMATIS KE BUCKET & DATABASE ---
-  Future<void> _saveAlat() async {
-    if (!_formKey.currentState!.validate()) return;
+      // --- SIMPAN OTOMATIS KE BUCKET & DATABASE ---
+    Future<void> _saveAlat() async {
+        if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+        setState(() => _isLoading = true);
 
-    try {
-      String? imageUrl;
+        try {
+          String? imageUrl;
 
-      // 1. OTOMATIS UPLOAD KE BUCKET
-      if (_imageBytes != null && _fileName != null) {
-        final String fileExt = _fileName!.split('.').last;
-        final String path = "alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
-        
-        // Menggunakan uploadBinary agar universal
-        await c.supabase.storage.from('daftar_alat').uploadBinary(path, _imageBytes!);
-        imageUrl = c.supabase.storage.from('daftar_alat').getPublicUrl(path);
-      }
+          // 1. OTOMATIS UPLOAD KE BUCKET
+          if (_imageBytes != null && _fileName != null) {
+            final String fileExt = _fileName!.split('.').last;
+            final String path = "alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
+            
+            await c.supabase.storage.from('daftar_alat').uploadBinary(path, _imageBytes!);
+            imageUrl = c.supabase.storage.from('daftar_alat').getPublicUrl(path);
+          }
 
-      // 2. OTOMATIS SIMPAN KE TABEL DATABASE
-      await c.supabase.from('alat').insert({
-        'nama_alat': nameController.text.trim(),
-        'id_kategori': int.parse(selectedKategori!),
-        'stok_total': int.parse(stokController.text.trim()),
-        'gambar_url': imageUrl, 
-      });
+          // 2. OTOMATIS SIMPAN KE TABEL DATABASE
+          // Catatan: Pastikan id_kategori sesuai dengan skema database
+          await c.supabase.from('alat').insert({
+            'nama_alat': nameController.text.trim(),
+            'id_kategori': int.parse(selectedKategori!),
+            'stok_total': int.parse(stokController.text.trim()),
+            'gambar_url': imageUrl, 
+            // updated_at sengaja tidak ditambahkan sesuai permintaanmu sebelumnya
+          });
 
-      Get.back(result: true);
+          // 3. BERHASIL - KEMBALI DENGAN SINYAL REFRESH
+          if (mounted) {
+            // HANYA panggil Get.back satu kali dengan result: true
+            Get.back(result: true); 
 
-      // 3. BERHASIL - LANGSUNG KEMBALI
-      Get.back(); 
-      Get.snackbar(
-        "Berhasil", 
-        "Data alat telah disimpan",
-        backgroundColor: const Color(0xFF1F3C58),
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      Get.snackbar(
-        "Gagal", 
-        "Terjadi kesalahan: $e",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      setState(() => _isLoading = false);
+            Get.snackbar(
+              "Berhasil", 
+              "Data alat telah disimpan",
+              backgroundColor: const Color(0xFF1F3C58),
+              colorText: Colors.white,
+              snackPosition: SnackPosition.BOTTOM,
+            );
+          }
+        } catch (e) {
+          Get.snackbar(
+            "Gagal", 
+            "Terjadi kesalahan: $e",
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
+        }
     }
-  }
-
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF1F3C58);

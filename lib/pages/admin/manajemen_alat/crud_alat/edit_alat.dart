@@ -66,49 +66,49 @@ class _EditAlatPageState extends State<EditAlatPage> {
       });
     }
   }
-
-  Future<void> _updateAlat() async {
+Future<void> _updateAlat() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      String? imageUrl = widget.alat['gambar_url'];
+      String imageUrl = widget.alat['gambar_url'] ?? "";
 
+      // 1. Upload Gambar jika ada perubahan
       if (_imageBytes != null && _fileName != null) {
-        final fileExt = _fileName!.split('.').last;
-        final path = 'alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+        final path = 'alat/${DateTime.now().millisecondsSinceEpoch}_$_fileName';
         await c.supabase.storage.from('daftar_alat').uploadBinary(path, _imageBytes!);
         imageUrl = c.supabase.storage.from('daftar_alat').getPublicUrl(path);
       }
 
+      // 2. Ambil ID Kategori berdasarkan nama yang dipilih di dropdown
       final katRes = await c.supabase
           .from('kategori')
           .select('id_kategori')
           .eq('nama_kategori', selectedCategory!)
           .single();
-      
-      final int idKategori = katRes['id_kategori'];
 
+      // 3. Eksekusi Update ke Database
+      // CATATAN: 'updated_at' dihapus agar tidak error PGRST204
       await c.supabase.from('alat').update({
         'nama_alat': nameController.text.trim(),
         'stok_total': int.parse(stockController.text.trim()),
-        'id_kategori': idKategori, 
+        'id_kategori': katRes['id_kategori'],
         'gambar_url': imageUrl,
       }).eq('id_alat', widget.alat['id_alat']);
 
-      Get.back(result: true); 
-      
-      Get.snackbar(
-        "Sukses", 
-        "Data berhasil diubah", 
-        backgroundColor: const Color(0xFF1F3C58),
-        colorText: Colors.white
-      );
+      // 4. KUNCI AUTO-REFRESH: Kirim result 'true' saat kembali
+      if (mounted) {
+        Get.back(result: true); 
+        Get.snackbar("Sukses", "Data alat berhasil diperbarui",
+            backgroundColor: Colors.white, colorText: const Color(0xFF1F3C58));
+      }
     } catch (e) {
-      Get.snackbar("Error", "Gagal update: $e", backgroundColor: Colors.red.shade100);
+      debugPrint("Update Error: $e");
+      Get.snackbar("Error", "Gagal memperbarui data: $e",
+          backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

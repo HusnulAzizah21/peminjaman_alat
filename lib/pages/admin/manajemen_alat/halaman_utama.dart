@@ -30,7 +30,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
     }
   }
 
-  void _confirmDelete(dynamic id, String name) {
+void _confirmDelete(dynamic id, String name) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -57,13 +57,29 @@ class _AdminBerandaPageState extends State<AdminPage> {
                   ElevatedButton(
                     onPressed: () async {
                       try {
+                        // 1. Eksekusi hapus di tabel 'alat'
                         await c.supabase.from('alat').delete().eq('id_alat', id);
+                        
+                        // 2. Tutup dialog
                         Get.back();
-                        Get.snackbar("Sukses", "Alat berhasil dihapus", backgroundColor: Colors.white);
-                        // StreamBuilder akan update otomatis, tidak perlu setState
+
+                        // 3. AUTOREFRESH: Memicu rebuild widget agar StreamBuilder memperbarui UI
+                        setState(() {}); 
+
+                        Get.snackbar(
+                          "Sukses", 
+                          "Alat berhasil dihapus", 
+                          backgroundColor: Colors.white,
+                          colorText: const Color(0xFF1F3C58)
+                        );
                       } catch (e) {
                         Get.back();
-                        Get.snackbar("Error", "Gagal menghapus: Data mungkin sedang dipinjam", backgroundColor: Colors.red, colorText: Colors.white);
+                        Get.snackbar(
+                          "Error", 
+                          "Gagal menghapus: Data mungkin sedang dipinjam", 
+                          backgroundColor: Colors.red, 
+                          colorText: Colors.white
+                        );
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -212,31 +228,55 @@ class _AdminBerandaPageState extends State<AdminPage> {
         child: PopupMenuButton<String>(
           offset: const Offset(0, -110),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          onSelected: (value) {
+          // PERBAIKAN: Tambahkan async di sini
+          onSelected: (value) async {
             if (value == 'alat') {
-              Get.to(() => const TambahAlatPage());
+              // 1. Tambahkan await dan tangkap hasilnya dalam variabel reload
+              var reload = await Get.to(() => const TambahAlatPage());
+              
+              // 2. Jika reload bernilai true (dikirim dari Get.back(result: true)), refresh UI
+              if (reload == true) {
+                setState(() {});
+              }
             } else if (value == 'kategori') {
-              Get.to(() => const KelolaKategoriPage());
+              // Hal yang sama untuk kategori jika ada perubahan data di sana
+              var reloadKategori = await Get.to(() => const KelolaKategoriPage());
+              if (reloadKategori == true) {
+                setState(() {});
+              }
             }
           },
           child: Container(
             height: 60, width: 60,
-            decoration: const BoxDecoration(color: Color(0xFF1F3C58), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1F3C58), 
+              shape: BoxShape.circle, 
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]
+            ),
             child: const Icon(Icons.add, color: Colors.white, size: 35),
           ),
           itemBuilder: (context) => [
-            const PopupMenuItem(value: 'alat', child: ListTile(leading: Icon(Icons.inventory), title: Text("Tambah Alat"))),
+            const PopupMenuItem(
+              value: 'alat', 
+              child: ListTile(leading: Icon(Icons.inventory), title: Text("Tambah Alat"))
+            ),
             const PopupMenuDivider(),
-            const PopupMenuItem(value: 'kategori', child: ListTile(leading: Icon(Icons.category), title: Text("Kelola Kategori"))),
+            const PopupMenuItem(
+              value: 'kategori', 
+              child: ListTile(leading: Icon(Icons.category), title: Text("Kelola Kategori"))
+            ),
           ],
         ),
       ),
     );
   }
 
+  // ... (bagian atas kode tetap sama sampai _buildAdminToolCard)
+
   Widget _buildAdminToolCard(BuildContext context, Map<String, dynamic> item) {
     int stok = item['stok_total'] ?? 0;
     bool isKosong = stok <= 0;
+    const primaryColor = Color(0xFF1F3C58);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,21 +305,33 @@ class _AdminBerandaPageState extends State<AdminPage> {
             Expanded(
               child: Text(item['nama_alat'] ?? "Tanpa Nama", 
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1F3C58))),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: primaryColor)),
             ),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF1F3C58)),
+              icon: const Icon(Icons.more_vert, size: 18, color: primaryColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              onSelected: (value) {
+              // PERBAIKAN DI SINI:
+              onSelected: (value) async {
                 if (value == 'edit') {
-                  Get.to(() => EditAlatPage(alat: item));
+                  // Menunggu sinyal result: true dari EditAlatPage
+                  var reload = await Get.to(() => EditAlatPage(alat: item));
+                  if (reload == true) {
+                    setState(() {}); // Memicu StreamBuilder untuk refresh data terbaru
+                  }
                 } else if (value == 'hapus') {
+                  // Memanggil fungsi konfirmasi hapus yang sudah kamu buat di atas
                   _confirmDelete(item['id_alat'], item['nama_alat']);
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text("Edit")),
-                const PopupMenuItem(value: 'hapus', child: Text("Hapus", style: TextStyle(color: Colors.red))),
+                const PopupMenuItem(
+                  value: 'edit', 
+                  child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text("Edit")]),
+                ),
+                const PopupMenuItem(
+                  value: 'hapus', 
+                  child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 8), Text("Hapus", style: TextStyle(color: Colors.red))]),
+                ),
               ],
             ),
           ],
