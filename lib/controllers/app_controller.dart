@@ -53,7 +53,7 @@ class AppController extends GetxController {
           if (role == 'Admin') {
             Get.offAll(() => const AdminBerandaPage()); 
           } else if (role == 'Petugas') {
-            Get.offAll(() => const PetugasBerandaPage()); 
+            Get.offAll(() => const BerandaPetugas()); 
           } else {
             Get.offAll(() => const PeminjamPage());
           }

@@ -64,19 +64,28 @@ class PeminjamDrawer extends StatelessWidget {
                   icon: Icons.home,
                   title: "Beranda",
                   isActive: currentPage == 'beranda',
-                  onTap: () => Get.offAll(() => const PeminjamPage()),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const PeminjamPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.add_box,
                   title: "Peminjaman",
                   isActive: currentPage == 'peminjaman',
-                  onTap: () => Get.offAll(() => const PeminjamanPage()),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const StatusPeminjamanPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.history,
                   title: "Riwayat",
                   isActive: currentPage == 'riwayat',
-                  onTap: () => Get.offAll(() => const RiwayatPage()),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const RiwayatPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.logout,

@@ -1,29 +1,31 @@
 import 'package:flutter/material.dart';
-import '../drawer.dart'; // Sesuaikan dengan nama file drawer petugasmu
+import '../drawer.dart'; // Pastikan path file drawer petugas sudah benar
 
-class PersetujuanPage extends StatefulWidget {
-  const PersetujuanPage({super.key});
+class PengembalianPetugasPage extends StatefulWidget {
+  const PengembalianPetugasPage({super.key});
 
   @override
-  State<PersetujuanPage> createState() => _PersetujuanPageState();
+  State<PengembalianPetugasPage> createState() => _PengembalianPetugasPageState();
 }
 
-class _PersetujuanPageState extends State<PersetujuanPage> {
-  bool isTabBelumDiproses = true; // State untuk navigasi tab
+class _PengembalianPetugasPageState extends State<PengembalianPetugasPage> {
+  bool isTabAktif = true; 
   final Color primaryColor = const Color(0xFF1F3C58);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // Drawer dipasang agar bisa dipencet
-      drawer: const PetugasDrawer(currentPage: 'Persetujuan'), 
+      // Drawer dipanggil agar menu samping bisa diakses
+      drawer: const PetugasDrawer(currentPage: 'Pengembalian'),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: Text("Persetujuan", 
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+        title: Text(
+          "Pengembalian",
+          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+        ),
         leading: Builder(
           builder: (context) => IconButton(
             icon: Icon(Icons.menu, color: primaryColor),
@@ -39,14 +41,19 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: "Pencarian . . .",
+                hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(25),
+                  borderSide: BorderSide(color: primaryColor.withOpacity(0.3)),
+                ),
               ),
-            ),
+            ), // Kurung penutup TextField yang benar
           ),
 
           // 2. TAB SWITCHER
@@ -60,29 +67,29 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
               ),
               child: Row(
                 children: [
-                  _buildTabItem("Belum diproses", isTabBelumDiproses, () {
-                    setState(() => isTabBelumDiproses = true);
+                  _buildTabItem("Peminjaman Aktif", isTabAktif, () {
+                    setState(() => isTabAktif = true);
                   }),
-                  _buildTabItem("Riwayat", !isTabBelumDiproses, () {
-                    setState(() => isTabBelumDiproses = false);
+                  _buildTabItem("Selesai", !isTabAktif, () {
+                    setState(() => isTabAktif = false);
                   }),
                 ],
               ),
             ),
           ),
 
-          // 3. LIST KONTEN
+          // 3. DAFTAR KONTEN BERDASARKAN TAB
           Expanded(
-            child: isTabBelumDiproses 
-              ? _buildListBelumDiproses() 
-              : _buildListRiwayatPersetujuan(),
+            child: isTabAktif 
+                ? _buildListPeminjamanAktif() 
+                : _buildListSelesai(),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET ITEM TAB ---
+  // WIDGET UNTUK ITEM TAB
   Widget _buildTabItem(String title, bool isActive, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
@@ -106,32 +113,30 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
     );
   }
 
-  // --- TAB 1: BELUM DIPROSES ---
-  Widget _buildListBelumDiproses() {
+  // TAB 1: DAFTAR PEMINJAMAN AKTIF
+  Widget _buildListPeminjamanAktif() {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        _cardPersetujuan("Aura", "Peminjaman 2 alat", "2 mnt yg lalu", null),
-        _cardPersetujuan("Aura", "Peminjaman 2 alat", "2 mnt yg lalu", null),
+        _buildPengembalianCard("Aura", "Peminjaman 1 alat", "21/1/2026 - 08:30"),
       ],
     );
   }
 
-  // --- TAB 2: RIWAYAT PERSETUJUAN ---
-  Widget _buildListRiwayatPersetujuan() {
+  // TAB 2: DAFTAR SELESAI
+  Widget _buildListSelesai() {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        _cardPersetujuan("Aura", "Pengajuan peminjaman 1 alat", "10 mnt yg lalu", "Ditolak"),
-        _cardPersetujuan("Aura", "Pengajuan peminjaman 1 alat", "10 mnt yg lalu", "Disetujui"),
+        _buildPengembalianCard("Aura", "Peminjaman 2 alat", "16/1/2026 | 13:30 - 21/1/2026 | 13:30"),
+        _buildPengembalianCard("Kania", "Peminjaman 2 alat", "11/1/2026 | 13:30 - 15/1/2026 | 13:30"),
+        _buildPengembalianCard("Shalsa", "Peminjaman 3 alat", "12/1/2026 | 13:30 - 15/1/2026 | 13:30"),
       ],
     );
   }
 
-  // --- WIDGET KARTU (SAMA PERSIS DENGAN DESAIN) ---
-  Widget _cardPersetujuan(String nama, String deskripsi, String waktu, String? status) {
-    Color statusColor = status == "Disetujui" ? Colors.green : Colors.red;
-    
+  // WIDGET KARTU ITEM
+  Widget _buildPengembalianCard(String nama, String deskripsi, String waktu) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(15),
@@ -139,7 +144,11 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -150,51 +159,61 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
             children: [
               Row(
                 children: [
-                  // Indikator garis vertikal
                   Container(
-                    width: 3, 
-                    height: 35, 
-                    color: status == null ? primaryColor : statusColor
+                    width: 3,
+                    height: 35,
+                    color: primaryColor,
                   ),
                   const SizedBox(width: 15),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text(deskripsi, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(
+                        nama,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        deskripsi,
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                     ],
                   ),
                 ],
               ),
-              // Tombol Detail atau Label Status
-              status == null 
-              ? ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                    minimumSize: const Size(60, 25),
+              ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
                   ),
-                  child: const Text("Detail alat", style: TextStyle(fontSize: 10, color: Colors.white)),
-                )
-              : Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(15)),
-                  child: Text(status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  minimumSize: const Size(60, 30),
+                  elevation: 0,
                 ),
+                child: const Text(
+                  "Detail",
+                  style: TextStyle(fontSize: 10, color: Colors.white),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               const Icon(Icons.access_time, size: 14, color: Colors.grey),
-              const SizedBox(width: 5),
-              Text(waktu, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              const SizedBox(width: 8),
+              Text(
+                waktu,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
             ],
           ),
         ],
       ),
     );
   }
-}
+} // Penutup class yang tadi hilang

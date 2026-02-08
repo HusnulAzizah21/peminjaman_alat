@@ -1,3 +1,7 @@
+import 'package:aplikasi_peminjamanbarang/pages/petugas/beranda/beranda_petugas.dart';
+import 'package:aplikasi_peminjamanbarang/pages/petugas/laporan/laporan.dart';
+import 'package:aplikasi_peminjamanbarang/pages/petugas/peminjaman/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/petugas/pengembalian/pengembalian.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/app_controller.dart';
@@ -62,25 +66,37 @@ class PetugasDrawer extends StatelessWidget {
                   icon: Icons.home,
                   title: "Beranda",
                   isActive: currentPage == 'beranda',
-                  onTap: () => Get.offAllNamed('/petugas-beranda'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const BerandaPetugas()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.check_circle,
                   title: "Persetujuan",
                   isActive: currentPage == 'persetujuan',
-                  onTap: () => Get.offAllNamed('/persetujuan'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const PersetujuanPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.assignment_return,
                   title: "Pengembalian",
                   isActive: currentPage == 'pengembalian',
-                  onTap: () => Get.offAllNamed('/pengembalian'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const PengembalianPetugasPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.bar_chart,
                   title: "Laporan",
                   isActive: currentPage == 'laporan',
-                  onTap: () => Get.offAllNamed('/laporan'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const LaporanPage()); 
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.logout,
