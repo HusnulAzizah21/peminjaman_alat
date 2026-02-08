@@ -1,3 +1,4 @@
+import 'package:aplikasi_peminjamanbarang/pages/admin/data_peminjaman/halaman_utama.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/app_controller.dart'; 
@@ -10,12 +11,12 @@ class AdminDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pastikan AppController sudah di-put di main atau page sebelumnya
     final c = Get.find<AppController>();
     
-    final user = c.supabase.auth.currentUser;
-    final String userEmail = user?.email ?? "user@gmail.com";
-    final String userName = userEmail.split('@')[0].capitalizeFirst ?? "User";
+    // AMBIL DATA DARI userProfile (Hasil login manual di AppController)
+    final userData = c.userProfile;
+    final String userEmail = userData['email'] ?? "admin@gmail.com";
+    final String userName = userData['nama'] ?? "Administrator";
 
     return Drawer(
       child: Column(
@@ -32,7 +33,7 @@ class AdminDrawer extends StatelessWidget {
                   radius: 35,
                   backgroundColor: Colors.white,
                   child: Text(
-                    (userEmail.isNotEmpty ? userEmail[0].toUpperCase() : "U"),
+                    userName.isNotEmpty ? userName[0].toUpperCase() : "A",
                     style: const TextStyle(
                       color: Color(0xFF1F3C58),
                       fontSize: 30,
@@ -81,7 +82,10 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.assignment,
                   title: "Data Peminjaman",
                   isActive: currentPage == 'Data Peminjaman',
-                  onTap: () => Get.offNamed('/data-peminjaman'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const DataPeminjamanAdminPage());
+                    },
                 ),
                 _buildMenuItem(
                   icon: Icons.person,
@@ -102,7 +106,7 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.logout,
                   title: "Keluar",
                   onTap: () {
-                    Get.back(); 
+                    Get.back(); // Tutup Drawer
                     _showLogoutDialog(c);
                   },
                 ),
@@ -157,7 +161,10 @@ class AdminDrawer extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Get.back(), child: const Text("Batal")),
           ElevatedButton(
-            onPressed: () => c.logout(),
+            onPressed: () {
+              Get.back(); // Tutup Dialog
+              c.logout(); // Panggil fungsi logout di controller
+            },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1F3C58)),
             child: const Text("Ya", style: TextStyle(color: Colors.white)),
           ),

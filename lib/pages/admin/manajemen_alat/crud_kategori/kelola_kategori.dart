@@ -11,21 +11,20 @@ class KelolaKategoriPage extends StatefulWidget {
 
 class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
   final c = Get.find<AppController>();
-  final katController = TextEditingController(); 
-  final editController = TextEditingController(); 
+  final katController = TextEditingController();
+  final editController = TextEditingController();
   final Color primaryColor = const Color(0xFF1F3C58);
 
   bool _isEditing = false;
   int? _selectedKategoriId;
 
-  // --- LOGIKA BATAL / RESET ---
   void _resetMode() {
     setState(() {
       _isEditing = false;
       _selectedKategoriId = null;
       katController.clear();
       editController.clear();
-      FocusScope.of(context).unfocus(); 
+      FocusScope.of(context).unfocus();
     });
   }
 
@@ -39,24 +38,30 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
 
   Future<void> _simpanKategori({bool isInline = false}) async {
     String namaBaru = isInline ? editController.text : katController.text;
-    if (namaBaru.isEmpty) return;
-    
+    if (namaBaru.trim().isEmpty) return;
+
     try {
-      if (_isEditing && _selectedKategoriId != null) {
+      if (_isEditing && _selectedKategoriId != null && isInline) {
+        // Logika UPDATE
         await c.supabase
             .from('kategori')
-            .update({'nama_kategori': namaBaru})
+            .update({'nama_kategori': namaBaru.trim()})
             .eq('id_kategori', _selectedKategoriId!);
       } else {
+        // Logika INSERT
         await c.supabase
             .from('kategori')
-            .insert({'nama_kategori': namaBaru});
+            .insert({'nama_kategori': namaBaru.trim()});
       }
-      
-      c.triggerRefresh(); 
+
       _resetMode();
+      if (!isInline) {
+        Get.snackbar("Sukses", "Kategori berhasil disimpan",
+            backgroundColor: Colors.green, colorText: Colors.white);
+      }
     } catch (e) {
-      Get.snackbar("Error", "Gagal menyimpan data", backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar("Error", "Gagal menyimpan: $e",
+          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
@@ -69,8 +74,14 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          leading: IconButton(icon: Icon(Icons.arrow_back, color: primaryColor), onPressed: () => Get.back()),
-          title: Text("Tambah Kategori", style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor, fontSize: 18)),
+          leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: primaryColor),
+              onPressed: () => Get.back()),
+          title: Text("Kelola Kategori",
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                  fontSize: 18)),
           backgroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
@@ -80,55 +91,86 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
           child: Column(
             children: [
               Expanded(
-                child: FutureBuilder(
-                  future: c.supabase.from('kategori').select().order('nama_kategori'),
+                // MENGGUNAKAN STREAM AGAR REAL-TIME REFRESH
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: c.supabase
+                      .from('kategori')
+                      .stream(primaryKey: ['id_kategori']).order('nama_kategori'),
                   builder: (context, snapshot) {
-                    // PENGGANTI LOADING: Jika data belum siap, tampilkan Container kosong atau daftar kosong
-                    if (!snapshot.hasData && snapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox.shrink(); // Tidak ada loading muter-muter
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
                     }
-                    
-                    final data = snapshot.data as List? ?? [];
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text("Belum ada kategori"));
+                    }
+
+                    final data = snapshot.data!;
                     return ListView.builder(
                       itemCount: data.length,
                       itemBuilder: (context, i) {
                         final item = data[i];
-                        bool isRowEditing = _isEditing && _selectedKategoriId == item['id_kategori'];
+                        bool isRowEditing = _isEditing &&
+                            _selectedKategoriId == item['id_kategori'];
 
                         return Column(
                           children: [
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: isRowEditing 
-                                ? TextField(
-                                    controller: editController,
-                                    autofocus: true,
-                                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600, fontSize: 14),
-                                    decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                                  )
-                                : InkWell(
-                                    onTap: () => _startInlineEdit(item['id_kategori'], item['nama_kategori']),
-                                    child: Text(item['nama_kategori'], 
-                                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600, fontSize: 14)),
-                                  ),
+                              title: isRowEditing
+                                  ? TextField(
+                                      controller: editController,
+                                      autofocus: true,
+                                      style: TextStyle(
+                                          color: primaryColor,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14),
+                                      decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          isDense: true),
+                                      onSubmitted: (_) =>
+                                          _simpanKategori(isInline: true),
+                                    )
+                                  : InkWell(
+                                      onLongPress: () => _startInlineEdit(
+                                          item['id_kategori'],
+                                          item['nama_kategori']),
+                                      child: Text(item['nama_kategori'],
+                                          style: TextStyle(
+                                              color: primaryColor,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14)),
+                                    ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (isRowEditing) ...[
                                     IconButton(
-                                      icon: Icon(Icons.check, color: primaryColor, size: 20),
-                                      onPressed: () => _simpanKategori(isInline: true),
+                                      icon: Icon(Icons.check,
+                                          color: Colors.green, size: 20),
+                                      onPressed: () =>
+                                          _simpanKategori(isInline: true),
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.cancel, color: primaryColor, size: 20),
+                                      icon: Icon(Icons.cancel,
+                                          color: Colors.red, size: 20),
                                       onPressed: _resetMode,
                                     ),
-                                  ],
-                                  if (!isRowEditing)
+                                  ] else ...[
                                     IconButton(
-                                      icon: Icon(Icons.delete, color: primaryColor, size: 20),
-                                      onPressed: () => _confirmDeleteKategori(item['id_kategori'], item['nama_kategori']),
+                                      icon: Icon(Icons.edit_note,
+                                          color: primaryColor, size: 20),
+                                      onPressed: () => _startInlineEdit(
+                                          item['id_kategori'],
+                                          item['nama_kategori']),
                                     ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline,
+                                          color: Colors.red, size: 20),
+                                      onPressed: () => _confirmDeleteKategori(
+                                          item['id_kategori'],
+                                          item['nama_kategori']),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -141,14 +183,16 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                 ),
               ),
               const SizedBox(height: 10),
+              // INPUT TAMBAH BARU
               TextField(
                 controller: katController,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: "Masukkan nama kategori",
+                  hintText: "Masukkan nama kategori baru",
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30)),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
@@ -162,13 +206,15 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                 child: ElevatedButton(
                   onPressed: () => _simpanKategori(isInline: false),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor, 
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))
-                  ),
-                  child: const Text("Tambah", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      backgroundColor: primaryColor,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30))),
+                  child: const Text("Tambah Kategori",
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -185,28 +231,40 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Hapus", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
+              const Text("Hapus Kategori",
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F3C58))),
               const SizedBox(height: 10),
-              Text("Hapus kategori '$name'?", textAlign: TextAlign.center),
+              Text("Anda yakin ingin menghapus '$name'?",
+                  textAlign: TextAlign.center),
               const SizedBox(height: 25),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  OutlinedButton(onPressed: () => Get.back(), child: const Text("Batal")),
+                  TextButton(
+                      onPressed: () => Get.back(), child: const Text("Batal")),
                   ElevatedButton(
                     onPressed: () async {
                       try {
-                        await c.supabase.from('kategori').delete().eq('id_kategori', id);
-                        c.triggerRefresh(); 
+                        await c.supabase
+                            .from('kategori')
+                            .delete()
+                            .eq('id_kategori', id);
                         Get.back();
-                        _resetMode(); 
+                        Get.snackbar("Terhapus", "Kategori berhasil dihapus",
+                            backgroundColor: Colors.orange);
                       } catch (e) {
                         Get.back();
-                        Get.snackbar("Gagal", "Data masih digunakan", backgroundColor: Colors.red, colorText: Colors.white);
+                        Get.snackbar("Gagal", "Kategori ini masih digunakan oleh data alat",
+                            backgroundColor: Colors.red, colorText: Colors.white);
                       }
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                    child: const Text("Ya", style: TextStyle(color: Colors.white)),
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                    child:
+                        const Text("Ya, Hapus", style: TextStyle(color: Colors.white)),
                   ),
                 ],
               )

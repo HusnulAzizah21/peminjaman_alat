@@ -1,85 +1,69 @@
+import 'package:aplikasi_peminjamanbarang/login_page.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_user/halaman_utama.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../pages/admin/manajemen_alat/halaman_utama.dart';
-import '../pages/petugas/beranda/beranda_petugas.dart';
-import '../pages/peminjam/beranda/beranda.dart';
-import '../login_page.dart';
+import 'package:flutter/material.dart';
 
 class AppController extends GetxController {
-  final supabase = Supabase.instance.client;
-
-  var refreshKategori = 0.obs;
-
-  void triggerRefresh() {
-    refreshKategori.value++;
-  }
+  final SupabaseClient supabase = Supabase.instance.client;
 
   var isLoading = false.obs;
-  var emailError = ''.obs;
-  var passwordError = ''.obs;
+  var userProfile = {}.obs;
+
+  var emailError = "".obs;
+  var passwordError = "".obs;
 
   Future<void> login(String email, String password) async {
-    // 1. Reset error setiap kali tombol ditekan
-    emailError.value = '';
-    passwordError.value = '';
-
-    // 2. Cek validasi input kosong (Lokal)
-    if (email.isEmpty) emailError.value = 'Email tidak boleh kosong';
-    if (password.isEmpty) passwordError.value = 'Password tidak boleh kosong';
-    if (email.isEmpty || password.isEmpty) return;
+    if (email.isEmpty || password.isEmpty) {
+      Get.snackbar("Peringatan", "Email dan Password tidak boleh kosong");
+      return;
+    }
 
     try {
       isLoading.value = true;
+      
+      // Gunakan debugPrint untuk cek di konsol VS Code
+      debugPrint("Mencoba Login: Email: '$email', Password: '$password'");
 
-      // 3. Proses Login ke Supabase Auth
-      try {
-        await supabase.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
+      final data = await supabase
+          .from('users')
+          .select()
+          .eq('email', email)
+          .eq('password', password)
+          .maybeSingle();
 
-        final user = supabase.auth.currentUser;
-        if (user != null) {
-          final profile = await supabase
-              .from('users')
-              .select()
-              .eq('id_user', user.id)
-              .maybeSingle();
+      debugPrint("Respon Database: $data");
 
-          if (profile != null) {
-            final role = profile['role'];
-            if (role == 'Admin') {
-              Get.offAll(() => const AdminPage());
-            } else if (role == 'Petugas') {
-              Get.offAll(() => const PetugasBerandaPage());
-            } else {
-              Get.offAll(() => const PeminjamPage());
-            }
-          }
-        }
-      } on AuthException catch (e) {
-        // --- LOGIKA PESAN DI BAWAH KOLOM ---
-        if (e.message.toLowerCase().contains('invalid login credentials')) {
-          // Set pesan yang sama ke kedua field
-          emailError.value = 'Email atau kata sandi salah';
-          passwordError.value = 'Email atau kata sandi salah';
+      if (data != null) {
+        userProfile.value = data;
+        String role = (data['role'] ?? 'Peminjam').toString();
+        
+        // PASTIIN NAMA ROUTE INI SUDAH ADA DI main.dart atau ganti ke Page-nya langsung
+        if (role == 'Admin') {
+          // Jika belum pakai GetPage routes, gunakan Get.offAll(() => NamaHalaman())
+          Get.offAll(() => const ManajemenPenggunaPage()); 
         } else {
-          Get.snackbar("Login Gagal", e.message);
+          Get.snackbar("Info", "Login berhasil sebagai $role");
         }
+
+        Get.snackbar("Sukses", "Selamat datang, ${data['nama']}", 
+          backgroundColor: Colors.green, colorText: Colors.white);
+      } else {
+        // Jika data null, berarti kombinasi email & password tidak ada di tabel
+        Get.snackbar("Gagal", "Email atau Password salah di database!", 
+          backgroundColor: Colors.orange, colorText: Colors.white);
       }
     } catch (e) {
-      Get.snackbar("Error", "Terjadi kesalahan sistem: $e");
+      debugPrint("Error Login: $e");
+      Get.snackbar("Error", "Koneksi bermasalah: $e", 
+        backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> logout() async {
-    try {
-      await supabase.auth.signOut();
-      Get.offAll(() => LoginPage());
-    } catch (e) {
-      Get.snackbar("Error", "Gagal Logout: $e");
-    }
+  void logout() {
+    userProfile.value = {};
+    Get.offAll(() => LoginPage());
   }
 }

@@ -12,6 +12,8 @@ void main() async {
     url: 'https://jzlbnuarsuoyffzbcter.supabase.co',
     anonKey: 'sb_publishable_kbx50_AKpUfDD2UEjd1M1g_GrUN15Ui',
   );
+  
+  // Cukup satu kali di sini
   Get.put(AppController());
   runApp(const MyApp());
 }
@@ -21,18 +23,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(AppController());
-
+    // HAPUS Get.put di sini, sudah ada di main()
     return GetMaterialApp(
       theme: ThemeData(
         useMaterial3: true,
-        // Mengatur font utama aplikasi
         textTheme: GoogleFonts.poppinsTextTheme(
           Theme.of(context).textTheme,
         ),
       ),
       debugShowCheckedModeBanner: false,
-      home: const SplashPage(), // ✅ SPLASH SCREEN
+      home: const SplashPage(),
     );
   }
 }

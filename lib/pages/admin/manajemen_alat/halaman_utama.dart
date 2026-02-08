@@ -18,7 +18,6 @@ class _AdminBerandaPageState extends State<AdminPage> {
   String searchQuery = "";
   String selectedCategory = "Semua";
   bool isInitialized = false;
-  List<String> dynamicCategories = ["Semua"];
 
   @override
   void initState() {
@@ -52,7 +51,6 @@ class _AdminBerandaPageState extends State<AdminPage> {
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFF1F3C58)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 30),
                     ),
                     child: const Text("Batal", style: TextStyle(color: Color(0xFF1F3C58))),
                   ),
@@ -61,17 +59,16 @@ class _AdminBerandaPageState extends State<AdminPage> {
                       try {
                         await c.supabase.from('alat').delete().eq('id_alat', id);
                         Get.back();
-                        setState(() {}); 
                         Get.snackbar("Sukses", "Alat berhasil dihapus", backgroundColor: Colors.white);
+                        // StreamBuilder akan update otomatis, tidak perlu setState
                       } catch (e) {
                         Get.back();
-                        Get.snackbar("Error", "Gagal menghapus: $e", backgroundColor: Colors.red, colorText: Colors.white);
+                        Get.snackbar("Error", "Gagal menghapus: Data mungkin sedang dipinjam", backgroundColor: Colors.red, colorText: Colors.white);
                       }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1F3C58),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
                     ),
                     child: const Text("Ya", style: TextStyle(color: Colors.white)),
                   ),
@@ -123,108 +120,99 @@ class _AdminBerandaPageState extends State<AdminPage> {
             ),
           ),
           
-          // --- KATEGORI HORIZONTAL ---
-          Obx(() {
-            c.refreshKategori.value;
-            return FutureBuilder(
-              future: c.supabase.from('kategori').select('nama_kategori').order('nama_kategori'),
+          // --- KATEGORI HORIZONTAL (REAL-TIME) ---
+          SizedBox(
+            height: 45,
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: c.supabase.from('kategori').stream(primaryKey: ['id_kategori']).order('nama_kategori'),
               builder: (context, snapshot) {
+                List<String> categories = ["Semua"];
                 if (snapshot.hasData) {
-                  List<String> fetchedCats = (snapshot.data as List)
-                      .map((item) => item['nama_kategori'].toString())
-                      .toList();
-                  dynamicCategories = ["Semua", ...fetchedCats];
+                  categories.addAll(snapshot.data!.map((e) => e['nama_kategori'].toString()));
                 }
 
-                return SizedBox(
-                  height: 45,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    itemCount: dynamicCategories.length,
-                    itemBuilder: (context, index) {
-                      bool isSelected = selectedCategory == dynamicCategories[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: InkWell(
-                          onTap: () => setState(() => selectedCategory = dynamicCategories[index]),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF1F3C58) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFF1F3C58).withOpacity(0.3)),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              dynamicCategories[index],
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : const Color(0xFF1F3C58),
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              ),
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    bool isSelected = selectedCategory == categories[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: InkWell(
+                        onTap: () => setState(() => selectedCategory = categories[index]),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFF1F3C58) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF1F3C58).withOpacity(0.3)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            categories[index],
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : const Color(0xFF1F3C58),
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          }),
-          // --- GRID ALAT ---
+            ),
+          ),
+
+          // --- GRID ALAT (REAL-TIME) ---
           Expanded(
-            child: Obx(() {
-              // TAMBAHKAN BARIS INI: 
-              // Ini akan memicu StreamBuilder untuk membangun ulang UI 
-              // setiap kali c.triggerRefresh() dipanggil di halaman Kategori.
-              c.refreshKategori.value; 
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              // Gunakan VIEW 'daftar_alat_lengkap' yang sudah kita bahas sebelumnya
+              stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+                if (snapshot.hasError) return const Center(child: Text("Gagal memuat data"));
 
-              return StreamBuilder<List<Map<String, dynamic>>>(
-                stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) return const Center(child: Text("Koneksi terputus..."));
+                final data = snapshot.data ?? [];
+                
+                // FILTERING
+                final filteredItems = data.where((item) {
+                  final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
+                  final String kat = (item['nama_kategori'] ?? "Tanpa Kategori").toString();
                   
-                  // MENGHAPUS LOADING MUTER-MUTER (CircularProgressIndicator)
-                  // Sesuai permintaan Anda, kita tampilkan SizedBox kosong saat loading awal
-                  if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+                  bool matchesSearch = nama.contains(searchQuery.toLowerCase());
+                  bool matchesCategory = selectedCategory == "Semua" || kat == selectedCategory;
                   
-                  final data = snapshot.data ?? [];
-                  final filteredItems = data.where((item) {
-                    final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
-                    final String katDb = (item['nama_kategori'] ?? "Tanpa Kategori").toString().trim().toLowerCase();
-                    bool matchesSearch = nama.contains(searchQuery.toLowerCase());
-                    bool matchesCategory = selectedCategory == "Semua" || katDb == selectedCategory.toLowerCase();
-                    return matchesSearch && matchesCategory;
-                  }).toList();
+                  return matchesSearch && matchesCategory;
+                }).toList();
 
-                  if (filteredItems.isEmpty) return const Center(child: Text("Tidak ada alat ditemukan"));
+                if (filteredItems.isEmpty) return const Center(child: Text("Tidak ada alat ditemukan"));
 
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 25,
-                      childAspectRatio: 0.75,
-                    ),
-                    itemCount: filteredItems.length,
-                    itemBuilder: (context, index) => _buildAdminToolCard(context, filteredItems[index]),
-                  );
-                },
-              );
-            }),
+                return GridView.builder(
+                  padding: const EdgeInsets.all(20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 15,
+                    mainAxisSpacing: 25,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: filteredItems.length,
+                  itemBuilder: (context, index) => _buildAdminToolCard(context, filteredItems[index]),
+                );
+              },
+            ),
           ),
         ],
       ),
 
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 70.0), 
+        padding: const EdgeInsets.only(bottom: 20.0), 
         child: PopupMenuButton<String>(
           offset: const Offset(0, -110),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          onSelected: (value) async {
+          onSelected: (value) {
             if (value == 'alat') {
               Get.to(() => const TambahAlatPage());
             } else if (value == 'kategori') {
@@ -233,13 +221,13 @@ class _AdminBerandaPageState extends State<AdminPage> {
           },
           child: Container(
             height: 60, width: 60,
-            decoration: const BoxDecoration(color: Color(0xFF1F3C58), shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: Color(0xFF1F3C58), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]),
             child: const Icon(Icons.add, color: Colors.white, size: 35),
           ),
           itemBuilder: (context) => [
-            const PopupMenuItem(value: 'alat', child: Text("Tambah Alat", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.w600))),
+            const PopupMenuItem(value: 'alat', child: ListTile(leading: Icon(Icons.inventory), title: Text("Tambah Alat"))),
             const PopupMenuDivider(),
-            const PopupMenuItem(value: 'kategori', child: Text("Tambah Kategori", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.w600))),
+            const PopupMenuItem(value: 'kategori', child: ListTile(leading: Icon(Icons.category), title: Text("Kelola Kategori"))),
           ],
         ),
       ),
@@ -249,7 +237,6 @@ class _AdminBerandaPageState extends State<AdminPage> {
   Widget _buildAdminToolCard(BuildContext context, Map<String, dynamic> item) {
     int stok = item['stok_total'] ?? 0;
     bool isKosong = stok <= 0;
-    String kategori = item['nama_kategori'] ?? "Tanpa Kategori";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,15 +245,16 @@ class _AdminBerandaPageState extends State<AdminPage> {
           child: Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.grey[100],
               borderRadius: BorderRadius.circular(15),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(15),
               child: (item['gambar_url'] ?? "").toString().isNotEmpty
-                  ? Image.network(item['gambar_url'], fit: BoxFit.contain)
-                  : const Icon(Icons.image_not_supported),
+                  ? Image.network(item['gambar_url'], fit: BoxFit.cover, 
+                      errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey))
+                  : const Icon(Icons.image_not_supported, color: Colors.grey),
             ),
           ),
         ),
@@ -275,37 +263,30 @@ class _AdminBerandaPageState extends State<AdminPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
-              child: Text(item['nama_alat'] ?? "Tanpa Nama", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              child: Text(item['nama_alat'] ?? "Tanpa Nama", 
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1F3C58))),
             ),
-            // PopupMenu yang sudah disamakan desainnya
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF1F3C58)),
-              offset: const Offset(-10, 25),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              onSelected: (value) async {
+              onSelected: (value) {
                 if (value == 'edit') {
-                  final res = await Get.to(() => EditAlatPage(alat: item));
-                  if (res == true) setState(() {});
+                  Get.to(() => EditAlatPage(alat: item));
                 } else if (value == 'hapus') {
                   _confirmDelete(item['id_alat'], item['nama_alat']);
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem<String>(
-                  value: 'edit',
-                  child: Text("Edit", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.w600)),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: 'hapus',
-                  child: Text("Hapus", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.w600)),
-                ),
+                const PopupMenuItem(value: 'edit', child: Text("Edit")),
+                const PopupMenuItem(value: 'hapus', child: Text("Hapus", style: TextStyle(color: Colors.red))),
               ],
             ),
           ],
         ),
-        Text(kategori, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-        Text(isKosong ? "Kosong" : "$stok unit", style: TextStyle(color: isKosong ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(item['nama_kategori'] ?? "Tanpa Kategori", style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        Text(isKosong ? "Stok Habis" : "Tersedia: $stok", 
+          style: TextStyle(color: isKosong ? Colors.red : Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
       ],
     );
   }

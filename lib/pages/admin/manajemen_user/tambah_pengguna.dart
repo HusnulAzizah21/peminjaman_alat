@@ -22,33 +22,32 @@ class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
 
   final Color primaryColor = const Color(0xFF1F3C58);
 
-  void _simpanData() async {
+// ... (Bagian import dan inisialisasi controller)
+
+  Future<void> _simpanData() async {
     if (_formKey.currentState!.validate()) {
       setState(() => isLoading = true);
       try {
-        // 1. Daftar ke Auth agar bisa login
-        final authRes = await c.supabase.auth.signUp(
-          email: emailC.text.trim(),
-          password: passC.text.trim(),
-        );
+        // Insert langsung ke tabel users
+        await c.supabase.from('users').insert({
+          'nama': nameC.text.trim(),
+          'email': emailC.text.trim(),
+          'password': passC.text.trim(), 
+          'role': selectedRole,
+          'created_at': DateTime.now().toIso8601String(),
+        });
 
-        if (authRes.user != null) {
-          // 2. Simpan ke tabel public agar password bisa DITAMPILKAN
-          await c.supabase.from('users').insert({
-            'id_user': authRes.user!.id,
-            'nama': nameC.text.trim(),
-            'email': emailC.text.trim(),
-            'password': passC.text.trim(), // Teks asli disimpan di sini
-            'role': selectedRole,
-          });
-
-          Get.back();
-          Get.snackbar("Sukses", "User berhasil ditambahkan", backgroundColor: Colors.white);
+        if (mounted) {
+          // KUNCI: Kirim sinyal 'true' ke halaman sebelumnya
+          Get.back(result: true); 
+          Get.snackbar("Sukses", "Pengguna berhasil ditambahkan",
+              backgroundColor: Colors.green, colorText: Colors.white);
         }
       } catch (e) {
-        Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+        Get.snackbar("Gagal", "Gagal menyimpan: $e",
+            backgroundColor: Colors.red, colorText: Colors.white);
       } finally {
-        setState(() => isLoading = false);
+        if (mounted) setState(() => isLoading = false);
       }
     }
   }
