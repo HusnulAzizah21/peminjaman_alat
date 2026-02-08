@@ -147,7 +147,7 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
                       errorStyle: const TextStyle(color: Colors.red),
                     ),
-                    validator: (value) => value == null || value.isEmpty ? "Nama alat tidak boleh kosong" : null,
+                    validator: (value) => value == null || value.isEmpty ? "Kolom wajib diisi!" : null,
                   ),
                   
                   const SizedBox(height: 20),
@@ -183,7 +183,7 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
                                     );
                                   }).toList(),
                                   onChanged: (val) => setState(() => selectedKategori = val),
-                                  validator: (value) => value == null ? "Wajib pilih" : null,
+                                  validator: (value) => value == null ? "Kolom wajib diisi!" : null,
                                 );
                               },
                             ),
@@ -206,8 +206,8 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
                               ),
                               validator: (value) {
-                                if (value == null || value.isEmpty) return "Kosong";
-                                if (int.tryParse(value) == null) return "Angka!";
+                                if (value == null || value.isEmpty) return "Kolom wajib diisi!";
+                                if (int.tryParse(value) == null) return "Masukkan angka!";
                                 return null;
                               },
                             ),

@@ -30,7 +30,7 @@ class _AdminBerandaPageState extends State<AdminPage> {
     }
   }
 
-void _confirmDelete(dynamic id, String name) {
+  void _confirmDelete(dynamic id, String name) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -57,14 +57,9 @@ void _confirmDelete(dynamic id, String name) {
                   ElevatedButton(
                     onPressed: () async {
                       try {
-                        // 1. Eksekusi hapus di tabel 'alat'
                         await c.supabase.from('alat').delete().eq('id_alat', id);
-                        
-                        // 2. Tutup dialog
                         Get.back();
-
-                        // 3. AUTOREFRESH: Memicu rebuild widget agar StreamBuilder memperbarui UI
-                        setState(() {}); 
+                        setState(() {}); // AUTO REFRESH SETELAH HAPUS ALAT
 
                         Get.snackbar(
                           "Sukses", 
@@ -118,7 +113,6 @@ void _confirmDelete(dynamic id, String name) {
       drawer: const AdminDrawer(currentPage: 'Manajemen Alat'),
       body: Column(
         children: [
-          // --- SEARCH BAR ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: TextField(
@@ -136,7 +130,7 @@ void _confirmDelete(dynamic id, String name) {
             ),
           ),
           
-          // --- KATEGORI HORIZONTAL (REAL-TIME) ---
+          // --- AUTO REFRESH KATEGORI BAR ---
           SizedBox(
             height: 45,
             child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -145,6 +139,10 @@ void _confirmDelete(dynamic id, String name) {
                 List<String> categories = ["Semua"];
                 if (snapshot.hasData) {
                   categories.addAll(snapshot.data!.map((e) => e['nama_kategori'].toString()));
+                  // Validasi jika kategori terpilih tiba-tiba dihapus
+                  if (!categories.contains(selectedCategory)) {
+                    Future.delayed(Duration.zero, () => setState(() => selectedCategory = "Semua"));
+                  }
                 }
 
                 return ListView.builder(
@@ -182,25 +180,19 @@ void _confirmDelete(dynamic id, String name) {
             ),
           ),
 
-          // --- GRID ALAT (REAL-TIME) ---
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // Gunakan VIEW 'daftar_alat_lengkap' yang sudah kita bahas sebelumnya
               stream: c.supabase.from('daftar_alat_lengkap').stream(primaryKey: ['id']),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
                 if (snapshot.hasError) return const Center(child: Text("Gagal memuat data"));
 
                 final data = snapshot.data ?? [];
-                
-                // FILTERING
                 final filteredItems = data.where((item) {
                   final String nama = (item['nama_alat'] ?? "").toString().toLowerCase();
                   final String kat = (item['nama_kategori'] ?? "Tanpa Kategori").toString();
-                  
                   bool matchesSearch = nama.contains(searchQuery.toLowerCase());
                   bool matchesCategory = selectedCategory == "Semua" || kat == selectedCategory;
-                  
                   return matchesSearch && matchesCategory;
                 }).toList();
 
@@ -228,22 +220,13 @@ void _confirmDelete(dynamic id, String name) {
         child: PopupMenuButton<String>(
           offset: const Offset(0, -110),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          // PERBAIKAN: Tambahkan async di sini
           onSelected: (value) async {
             if (value == 'alat') {
-              // 1. Tambahkan await dan tangkap hasilnya dalam variabel reload
               var reload = await Get.to(() => const TambahAlatPage());
-              
-              // 2. Jika reload bernilai true (dikirim dari Get.back(result: true)), refresh UI
-              if (reload == true) {
-                setState(() {});
-              }
+              if (reload == true) setState(() {});
             } else if (value == 'kategori') {
-              // Hal yang sama untuk kategori jika ada perubahan data di sana
               var reloadKategori = await Get.to(() => const KelolaKategoriPage());
-              if (reloadKategori == true) {
-                setState(() {});
-              }
+              if (reloadKategori == true) setState(() {}); // AUTO REFRESH SETELAH KELOLA KATEGORI
             }
           },
           child: Container(
@@ -270,8 +253,6 @@ void _confirmDelete(dynamic id, String name) {
       ),
     );
   }
-
-  // ... (bagian atas kode tetap sama sampai _buildAdminToolCard)
 
   Widget _buildAdminToolCard(BuildContext context, Map<String, dynamic> item) {
     int stok = item['stok_total'] ?? 0;
@@ -310,16 +291,11 @@ void _confirmDelete(dynamic id, String name) {
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, size: 18, color: primaryColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              // PERBAIKAN DI SINI:
               onSelected: (value) async {
                 if (value == 'edit') {
-                  // Menunggu sinyal result: true dari EditAlatPage
                   var reload = await Get.to(() => EditAlatPage(alat: item));
-                  if (reload == true) {
-                    setState(() {}); // Memicu StreamBuilder untuk refresh data terbaru
-                  }
+                  if (reload == true) setState(() {}); 
                 } else if (value == 'hapus') {
-                  // Memanggil fungsi konfirmasi hapus yang sudah kamu buat di atas
                   _confirmDelete(item['id_alat'], item['nama_alat']);
                 }
               },

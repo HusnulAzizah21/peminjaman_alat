@@ -25,7 +25,7 @@ class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
   final Color primaryColor = const Color(0xFF1F3C58);
 
   // FUNGSI SIMPAN: Menyimpan ke users dan mencatat ke log_aktivitas
-  Future<void> _simpanData() async {
+    Future<void> _simpanData() async {
     if (_formKey.currentState!.validate()) {
       setState(() => isLoading = true);
       try {
@@ -36,19 +36,19 @@ class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
           'password': passC.text.trim(), 
           'role': selectedRole,
           'created_at': DateTime.now().toIso8601String(),
+          // updated_at tetap dikosongkan sesuai permintaanmu
         });
 
         // 2. Catat aktivitas ke tabel log_aktivitas
-        // Sesuai struktur tabelmu: id_user, aksi, keterangan, created_at
         await c.supabase.from('log_aktivitas').insert({
-          'id_user': c.userProfile['id_user'], // ID Admin yang sedang login
+          'id_user': c.userProfile['id_user'], 
           'aksi': 'Tambah User',
           'keterangan': 'Berhasil menambahkan user baru: ${nameC.text.trim()}',
           'created_at': DateTime.now().toIso8601String(),
         });
 
         if (mounted) {
-          // Tutup halaman dan beri sinyal 'true' agar halaman list di-refresh
+          // Balik ke halaman list dengan sinyal refresh [cite: 2026-02-08]
           Get.back(result: true); 
           Get.snackbar(
             "Sukses", 
@@ -59,14 +59,25 @@ class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
           );
         }
       } catch (e) {
-        Get.snackbar(
-          "Gagal", 
-          "Terjadi kesalahan: ${e.toString()}",
-          backgroundColor: Colors.red, 
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        // VALIDASI EMAIL SUDAH TERDAFTAR (Error 23505)
+        if (e.toString().contains('23505') || e.toString().contains('users_email_key')) {
+          Get.snackbar(
+            "Email Terdaftar", 
+            "Email ini sudah digunakan oleh akun lain. Silakan gunakan email berbeda.",
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+        } else {
+          Get.snackbar(
+            "Gagal", 
+            "Terjadi kesalahan: $e",
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
       } finally {
+        // PENTING: Agar loading berhenti jika terjadi error
         if (mounted) setState(() => isLoading = false);
       }
     }

@@ -115,7 +115,7 @@ class _ManajemenPenggunaPageState extends State<ManajemenPenggunaPage> {
             child: TextField(
               onChanged: (val) => setState(() => searchQuery = val),
               decoration: InputDecoration(
-                hintText: "Cari nama atau email...",
+                hintText: "Pencarian...",
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),

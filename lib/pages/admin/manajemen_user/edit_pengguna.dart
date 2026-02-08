@@ -114,7 +114,7 @@ Future<void> _updateData() async {
               TextFormField(
                 controller: nameC,
                 decoration: _buildInputDecoration("Masukkan nama"),
-                validator: (v) => v!.isEmpty ? "Nama wajib diisi" : null,
+                validator: (v) => v!.isEmpty ? "Kolom nama wajib diisi!" : null,
               ),
 
               const SizedBox(height: 15),
@@ -122,8 +122,8 @@ Future<void> _updateData() async {
               _buildLabel("Email"),
               TextFormField(
                 controller: emailC,
-                decoration: _buildInputDecoration("Email"),
-                validator: (v) => v!.isEmpty ? "Email wajib diisi" : null,
+                decoration: _buildInputDecoration("Masukkan email"),
+                validator: (v) => v!.isEmpty ? "Kolom email wajib diisi!" : null,
               ),
 
               const SizedBox(height: 15),

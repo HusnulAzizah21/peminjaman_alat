@@ -1,5 +1,7 @@
 import 'package:aplikasi_peminjamanbarang/login_page.dart';
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_user/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_alat/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/peminjam/beranda/beranda.dart';
+import 'package:aplikasi_peminjamanbarang/pages/petugas/beranda/beranda_petugas.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
@@ -9,54 +11,57 @@ class AppController extends GetxController {
 
   var isLoading = false.obs;
   var userProfile = {}.obs;
-
-  var emailError = "".obs;
-  var passwordError = "".obs;
+  var emailError = RxnString();
+  var passwordError = RxnString();
+  var isPasswordVisible = false.obs; // Logika visibility
 
   Future<void> login(String email, String password) async {
-    if (email.isEmpty || password.isEmpty) {
-      Get.snackbar("Peringatan", "Email dan Password tidak boleh kosong");
-      return;
-    }
+    // Reset error setiap kali tombol ditekan
+    emailError.value = null;
+    passwordError.value = null;
+
+    // Validasi Kosong
+    if (email.isEmpty) emailError.value = "Email tidak boleh kosong";
+    if (password.isEmpty) passwordError.value = "Kata sandi tidak boleh kosong";
+    if (email.isEmpty || password.isEmpty) return;
 
     try {
       isLoading.value = true;
       
-      // Gunakan debugPrint untuk cek di konsol VS Code
-      debugPrint("Mencoba Login: Email: '$email', Password: '$password'");
-
+      // Step 1: Cari user berdasarkan email
       final data = await supabase
           .from('users')
           .select()
           .eq('email', email)
-          .eq('password', password)
           .maybeSingle();
 
-      debugPrint("Respon Database: $data");
-
-      if (data != null) {
-        userProfile.value = data;
-        String role = (data['role'] ?? 'Peminjam').toString();
-        
-        // PASTIIN NAMA ROUTE INI SUDAH ADA DI main.dart atau ganti ke Page-nya langsung
-        if (role == 'Admin') {
-          // Jika belum pakai GetPage routes, gunakan Get.offAll(() => NamaHalaman())
-          Get.offAll(() => const ManajemenPenggunaPage()); 
-        } else {
-          Get.snackbar("Info", "Login berhasil sebagai $role");
-        }
-
-        Get.snackbar("Sukses", "Selamat datang, ${data['nama']}", 
-          backgroundColor: Colors.green, colorText: Colors.white);
+      if (data == null) {
+        emailError.value = "Email tidak terdaftar";
       } else {
-        // Jika data null, berarti kombinasi email & password tidak ada di tabel
-        Get.snackbar("Gagal", "Email atau Password salah di database!", 
-          backgroundColor: Colors.orange, colorText: Colors.white);
+        // Step 2: Cek password
+        if (data['password'] != password) {
+          passwordError.value = "Kata sandi salah";
+        } else {
+          // LOGIN BERHASIL
+          userProfile.value = data;
+          String role = data['role']?.toString() ?? 'Peminjam';
+          
+          Get.snackbar("Sukses", "Selamat datang, ${data['nama']}", 
+              backgroundColor: Colors.green, colorText: Colors.white);
+
+          // NAVIGASI BERDASARKAN ROLE
+          if (role == 'Admin') {
+            Get.offAll(() => const AdminPage()); 
+          } else if (role == 'Petugas') {
+            Get.offAll(() => const PetugasBerandaPage()); 
+          } else {
+            Get.offAll(() => const PeminjamPage());
+          }
+        }
       }
     } catch (e) {
-      debugPrint("Error Login: $e");
       Get.snackbar("Error", "Koneksi bermasalah: $e", 
-        backgroundColor: Colors.red, colorText: Colors.white);
+          backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
@@ -64,6 +69,6 @@ class AppController extends GetxController {
 
   void logout() {
     userProfile.value = {};
-    Get.offAll(() => LoginPage());
+    Get.offAll(() => const LoginPage());
   }
 }

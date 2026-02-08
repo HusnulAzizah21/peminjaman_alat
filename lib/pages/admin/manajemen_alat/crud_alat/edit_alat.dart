@@ -186,7 +186,7 @@ Future<void> _updateAlat() async {
                 TextFormField(
                   controller: nameController,
                   decoration: _inputDecoration("Monitor"),
-                  validator: (val) => val == null || val.isEmpty ? "Kolom wajib diisi" : null,
+                  validator: (val) => val == null || val.isEmpty ? "Kolom wajib diisi!" : null,
                 ),
                 const SizedBox(height: 20),
                 
@@ -214,7 +214,7 @@ Future<void> _updateAlat() async {
                               });
                             },
                             decoration: _inputDecoration("Pilih Kategori"),
-                            validator: (val) => val == null ? "Kolom wajib diisi" : null,
+                            validator: (val) => val == null ? "Kolom wajib diisi!" : null,
                             dropdownColor: Colors.white,
                             icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1F3C58)),
                           ),

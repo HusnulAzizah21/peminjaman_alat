@@ -42,19 +42,20 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
 
     try {
       if (_isEditing && _selectedKategoriId != null && isInline) {
-        // Logika UPDATE
         await c.supabase
             .from('kategori')
             .update({'nama_kategori': namaBaru.trim()})
             .eq('id_kategori', _selectedKategoriId!);
       } else {
-        // Logika INSERT
         await c.supabase
             .from('kategori')
             .insert({'nama_kategori': namaBaru.trim()});
       }
 
+      // AUTO REFRESH LOKAL
+      setState(() {}); 
       _resetMode();
+      
       if (!isInline) {
         Get.snackbar("Sukses", "Kategori berhasil disimpan",
             backgroundColor: Colors.green, colorText: Colors.white);
@@ -76,7 +77,7 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
         appBar: AppBar(
           leading: IconButton(
               icon: Icon(Icons.arrow_back, color: primaryColor),
-              onPressed: () => Get.back()),
+              onPressed: () => Get.back(result: true)), // Mengirim result true untuk refresh admin page
           title: Text("Kelola Kategori",
               style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -91,7 +92,6 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
           child: Column(
             children: [
               Expanded(
-                // MENGGUNAKAN STREAM AGAR REAL-TIME REFRESH
                 child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: c.supabase
                       .from('kategori')
@@ -145,13 +145,13 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                                 children: [
                                   if (isRowEditing) ...[
                                     IconButton(
-                                      icon: Icon(Icons.check,
+                                      icon: const Icon(Icons.check,
                                           color: Colors.green, size: 20),
                                       onPressed: () =>
                                           _simpanKategori(isInline: true),
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.cancel,
+                                      icon: const Icon(Icons.cancel,
                                           color: Colors.red, size: 20),
                                       onPressed: _resetMode,
                                     ),
@@ -164,7 +164,7 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                                           item['nama_kategori']),
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.delete_outline,
+                                      icon: const Icon(Icons.delete_outline,
                                           color: Colors.red, size: 20),
                                       onPressed: () => _confirmDeleteKategori(
                                           item['id_kategori'],
@@ -183,7 +183,6 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                 ),
               ),
               const SizedBox(height: 10),
-              // INPUT TAMBAH BARU
               TextField(
                 controller: katController,
                 textAlign: TextAlign.center,
@@ -252,6 +251,8 @@ class _KelolaKategoriPageState extends State<KelolaKategoriPage> {
                             .from('kategori')
                             .delete()
                             .eq('id_kategori', id);
+                        
+                        setState(() {}); // AUTO REFRESH SETELAH HAPUS
                         Get.back();
                         Get.snackbar("Terhapus", "Kategori berhasil dihapus",
                             backgroundColor: Colors.orange);
