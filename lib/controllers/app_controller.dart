@@ -1,5 +1,5 @@
 import 'package:aplikasi_peminjamanbarang/login_page.dart';
-import 'package:aplikasi_peminjamanbarang/pages/admin/manajemen_alat/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/beranda/beranda_admin.dart';
 import 'package:aplikasi_peminjamanbarang/pages/peminjam/beranda/beranda.dart';
 import 'package:aplikasi_peminjamanbarang/pages/petugas/beranda/beranda_petugas.dart';
 import 'package:get/get.dart';
@@ -51,7 +51,7 @@ class AppController extends GetxController {
 
           // NAVIGASI BERDASARKAN ROLE
           if (role == 'Admin') {
-            Get.offAll(() => const AdminPage()); 
+            Get.offAll(() => const AdminBerandaPage()); 
           } else if (role == 'Petugas') {
             Get.offAll(() => const PetugasBerandaPage()); 
           } else {

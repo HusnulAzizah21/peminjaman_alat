@@ -39,8 +39,7 @@ class _EditAlatPageState extends State<EditAlatPage> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await c.supabase.from('kategori').select('nama_kategori');
-      if (response != null) {
+      final response = await c.supabase.from('kategori').select('nama_kategori'); {
         setState(() {
           _categories = (response as List)
               .map((item) => item['nama_kategori'].toString())

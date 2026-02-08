@@ -1,4 +1,6 @@
+import 'package:aplikasi_peminjamanbarang/pages/admin/beranda/beranda_admin.dart';
 import 'package:aplikasi_peminjamanbarang/pages/admin/data_peminjaman/halaman_utama.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/log_aktivitas/halaman_log.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/app_controller.dart'; 
@@ -67,7 +69,9 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.home,
                   title: "Beranda",
                   isActive: currentPage == 'Beranda',
-                  onTap: () => Get.offNamed('/admin-beranda'),
+                  onTap: () {
+                    Get.off(() => const AdminBerandaPage());
+                  }
                 ),
                 _buildMenuItem(
                   icon: Icons.inventory_2,
@@ -100,7 +104,10 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.history,
                   title: "Log Aktivitas",
                   isActive: currentPage == 'Log Aktivitas',
-                  onTap: () => Get.offNamed('/log-aktivitas'),
+                  onTap: () {
+                    Get.back();
+                    Get.off(() => const LogAktivitasPage ());
+                  } 
                 ),
                 _buildMenuItem(
                   icon: Icons.logout,
