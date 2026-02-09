@@ -36,7 +36,6 @@ class _TambahPenggunaPageState extends State<TambahPenggunaPage> {
           'password': passC.text.trim(), 
           'role': selectedRole,
           'created_at': DateTime.now().toIso8601String(),
-          // updated_at tetap dikosongkan sesuai permintaanmu
         });
 
         // 2. Catat aktivitas ke tabel log_aktivitas

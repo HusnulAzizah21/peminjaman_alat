@@ -88,7 +88,7 @@ class AdminDrawer extends StatelessWidget {
                   isActive: currentPage == 'Data Peminjaman',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const DataPeminjamanAdminPage());
+                    Get.off(() => const AdminDataPeminjamanPage());
                     },
                 ),
                 _buildMenuItem(

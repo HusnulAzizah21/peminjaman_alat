@@ -41,57 +41,79 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
   }
 
       // --- SIMPAN OTOMATIS KE BUCKET & DATABASE ---
-    Future<void> _saveAlat() async {
-        if (!_formKey.currentState!.validate()) return;
+      Future<void> _saveAlat() async {
+    if (!_formKey.currentState!.validate()) return;
 
-        setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-        try {
-          String? imageUrl;
+    try {
+      String? imageUrl;
 
-          // 1. OTOMATIS UPLOAD KE BUCKET
-          if (_imageBytes != null && _fileName != null) {
-            final String fileExt = _fileName!.split('.').last;
-            final String path = "alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
-            
-            await c.supabase.storage.from('daftar_alat').uploadBinary(path, _imageBytes!);
-            imageUrl = c.supabase.storage.from('daftar_alat').getPublicUrl(path);
-          }
+      // 1. UPLOAD GAMBAR KE BUCKET
+      if (_imageBytes != null && _fileName != null) {
+        final String fileExt = _fileName!.split('.').last;
+        final String path = "alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
+        
+        await c.supabase.storage
+            .from('daftar_alat')
+            .uploadBinary(path, _imageBytes!);
 
-          // 2. OTOMATIS SIMPAN KE TABEL DATABASE
-          // Catatan: Pastikan id_kategori sesuai dengan skema database
-          await c.supabase.from('alat').insert({
-            'nama_alat': nameController.text.trim(),
-            'id_kategori': int.parse(selectedKategori!),
-            'stok_total': int.parse(stokController.text.trim()),
-            'gambar_url': imageUrl, 
-            // updated_at sengaja tidak ditambahkan sesuai permintaanmu sebelumnya
-          });
+        imageUrl = c.supabase.storage
+            .from('daftar_alat')
+            .getPublicUrl(path);
+      }
 
-          // 3. BERHASIL - KEMBALI DENGAN SINYAL REFRESH
-          if (mounted) {
-            // HANYA panggil Get.back satu kali dengan result: true
-            Get.back(result: true); 
+      // 2. CEK DUPLIKASI NAMA ALAT
+      final existingAlat = await c.supabase
+          .from('alat')
+          .select('id_alat')
+          .eq('nama_alat', nameController.text.trim())
+          .maybeSingle();
 
-            Get.snackbar(
-              "Berhasil", 
-              "Data alat telah disimpan",
-              backgroundColor: const Color(0xFF1F3C58),
-              colorText: Colors.white,
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          }
-        } catch (e) {
-          Get.snackbar(
-            "Gagal", 
-            "Terjadi kesalahan: $e",
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
-        }
+      if (existingAlat != null) {
+        Get.snackbar(
+          "Gagal",
+          "Alat sudah ada",
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      // 3. INSERT KE DATABASE ✅ (INI YANG SEBELUMNYA HILANG)
+      await c.supabase.from('alat').insert({
+        'nama_alat': nameController.text.trim(),
+        'stok': int.parse(stokController.text),
+        'id_kategori': int.parse(selectedKategori!), // sesuaikan tipe DB
+        'foto': imageUrl, // nullable boleh
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // 4. SUKSES
+      if (mounted) {
+        Get.back(result: true);
+
+        Get.snackbar(
+          "Berhasil", 
+          "Data alat telah disimpan",
+          backgroundColor: const Color(0xFF1F3C58),
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+
+    } catch (e) {
+      Get.snackbar(
+        "Gagal", 
+        "Terjadi kesalahan: $e",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF1F3C58);

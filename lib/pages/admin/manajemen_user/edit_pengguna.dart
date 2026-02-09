@@ -46,7 +46,7 @@ Future<void> _updateData() async {
     try {
       final userId = widget.userData['id_user']; 
 
-      // INI YANG KURANG: Perintah untuk kirim data ke Supabase
+      // Perintah untuk kirim data ke Supabase
       await c.supabase.from('users').update({
         'nama': nameC.text.trim(),
         'email': emailC.text.trim(),

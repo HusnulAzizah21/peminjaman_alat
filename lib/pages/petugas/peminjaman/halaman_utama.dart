@@ -1,5 +1,8 @@
+import 'package:aplikasi_peminjamanbarang/controllers/app_controller.dart';
 import 'package:flutter/material.dart';
-import '../drawer.dart'; // Sesuaikan dengan nama file drawer petugasmu
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import '../drawer.dart'; 
 
 class PersetujuanPage extends StatefulWidget {
   const PersetujuanPage({super.key});
@@ -9,21 +12,76 @@ class PersetujuanPage extends StatefulWidget {
 }
 
 class _PersetujuanPageState extends State<PersetujuanPage> {
-  bool isTabBelumDiproses = true; // State untuk navigasi tab
+  bool isTabBelumDiproses = true;
   final Color primaryColor = const Color(0xFF1F3C58);
+  final c = Get.find<AppController>();
+
+  // ================= FETCH DATA (MENUNGGU) =================
+  Future<List<Map<String, dynamic>>> _getMenunggu() async {
+    try {
+      final response = await c.supabase
+          .from('peminjaman')
+          .select('*, users!peminjaman_id_peminjam_fkey(nama)')
+          .eq('status_transaksi', 'menunggu')
+          .order('pengambilan', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint("Error Fetch Menunggu: $e");
+      return [];
+    }
+  }
+
+  // ================= FETCH DATA (RIWAYAT) =================
+  Future<List<Map<String, dynamic>>> _getRiwayat() async {
+    try {
+      final response = await c.supabase
+          .from('peminjaman')
+          .select('*, users!peminjaman_id_peminjam_fkey(nama)')
+          .neq('status_transaksi', 'menunggu')
+          .order('pengambilan', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint("Error Fetch Riwayat: $e");
+      return [];
+    }
+  }
+
+  // ================= UPDATE STATUS =================
+  Future<void> _updateStatus(dynamic idPinjam, String status) async {
+    try {
+      // Menampilkan loading sederhana
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+
+      await c.supabase.from('peminjaman').update({
+        'status_transaksi': status,
+        'id_petugas': c.userProfile['id_user'], 
+      }).eq('id_pinjam', idPinjam);
+
+      Get.back(); // Tutup loading
+      if (Get.isDialogOpen!) Get.back(); // Tutup dialog detail jika ada
+      
+      setState(() {}); // Refresh list data
+      
+      Get.snackbar("Berhasil", "Permintaan telah $status",
+          backgroundColor: status == 'disetujui' ? Colors.green : Colors.red, 
+          colorText: Colors.white);
+    } catch (e) {
+      Get.back(); // Tutup loading
+      Get.snackbar("Error", "Gagal update status: $e", backgroundColor: Colors.red);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // Drawer dipasang agar bisa dipencet
-      drawer: const PetugasDrawer(currentPage: 'Persetujuan'), 
+      drawer: const PetugasDrawer(currentPage: 'Persetujuan'),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: Text("Persetujuan", 
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+        title: Text("Persetujuan",
+            style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
         leading: Builder(
           builder: (context) => IconButton(
             icon: Icon(Icons.menu, color: primaryColor),
@@ -33,114 +91,95 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
       ),
       body: Column(
         children: [
-          // 1. SEARCH BAR
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Pencarian . . .",
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
-                ),
-              ),
-            ),
-          ),
-
-          // 2. TAB SWITCHER
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.shade50,
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Row(
-                children: [
-                  _buildTabItem("Belum diproses", isTabBelumDiproses, () {
-                    setState(() => isTabBelumDiproses = true);
-                  }),
-                  _buildTabItem("Riwayat", !isTabBelumDiproses, () {
-                    setState(() => isTabBelumDiproses = false);
-                  }),
-                ],
-              ),
-            ),
-          ),
-
-          // 3. LIST KONTEN
+          _buildTabs(),
           Expanded(
-            child: isTabBelumDiproses 
-              ? _buildListBelumDiproses() 
-              : _buildListRiwayatPersetujuan(),
+            child: isTabBelumDiproses
+                ? _buildList(isRiwayat: false)
+                : _buildList(isRiwayat: true),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET ITEM TAB ---
-  Widget _buildTabItem(String title, bool isActive, VoidCallback onTap) {
+  Widget _buildTabs() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.shade50,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          children: [
+            _tabItem("Belum diproses", isTabBelumDiproses, () => setState(() => isTabBelumDiproses = true)),
+            _tabItem("Riwayat", !isTabBelumDiproses, () => setState(() => isTabBelumDiproses = false)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabItem(String title, bool active, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF1F3C58) : Colors.transparent,
+            color: active ? primaryColor : Colors.transparent,
             borderRadius: BorderRadius.circular(25),
           ),
-          child: Text(
-            title,
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.grey,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+          child: Text(title,
+              style: TextStyle(color: active ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
         ),
       ),
     );
   }
 
-  // --- TAB 1: BELUM DIPROSES ---
-  Widget _buildListBelumDiproses() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _cardPersetujuan("Aura", "Peminjaman 2 alat", "2 mnt yg lalu", null),
-        _cardPersetujuan("Aura", "Peminjaman 2 alat", "2 mnt yg lalu", null),
-      ],
+  Widget _buildList({required bool isRiwayat}) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: isRiwayat ? _getRiwayat() : _getMenunggu(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(child: Text(isRiwayat ? "Riwayat kosong" : "Tidak ada pengajuan"));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(20),
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, i) {
+            final item = snapshot.data![i];
+            final String nama = item['users']?['nama'] ?? 'Tanpa Nama';
+            final String statusStr = item['status_transaksi'];
+
+            return _cardPersetujuan(
+              nama,
+              "ID Pinjam: ${item['id_pinjam']}",
+              _formatWaktu(item['pengambilan']),
+              isRiwayat ? (statusStr == 'disetujui' ? "Disetujui" : "Ditolak") : null,
+              item,
+            );
+          },
+        );
+      },
     );
   }
 
-  // --- TAB 2: RIWAYAT PERSETUJUAN ---
-  Widget _buildListRiwayatPersetujuan() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _cardPersetujuan("Aura", "Pengajuan peminjaman 1 alat", "10 mnt yg lalu", "Ditolak"),
-        _cardPersetujuan("Aura", "Pengajuan peminjaman 1 alat", "10 mnt yg lalu", "Disetujui"),
-      ],
-    );
-  }
-
-  // --- WIDGET KARTU (SAMA PERSIS DENGAN DESAIN) ---
-  Widget _cardPersetujuan(String nama, String deskripsi, String waktu, String? status) {
+  Widget _cardPersetujuan(String nama, String desc, String waktu, String? status, Map<String, dynamic> item) {
     Color statusColor = status == "Disetujui" ? Colors.green : Colors.red;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,41 +187,27 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Indikator garis vertikal
-                  Container(
-                    width: 3, 
-                    height: 35, 
-                    color: status == null ? primaryColor : statusColor
-                  ),
-                  const SizedBox(width: 15),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text(deskripsi, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
+                  Text(nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 ],
               ),
-              // Tombol Detail atau Label Status
-              status == null 
-              ? ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                    minimumSize: const Size(60, 25),
-                  ),
-                  child: const Text("Detail alat", style: TextStyle(fontSize: 10, color: Colors.white)),
-                )
-              : Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(15)),
-                  child: Text(status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                ),
+              status == null
+                  ? ElevatedButton(
+                      onPressed: () => _showDetailDialog(item),
+                      style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                      child: const Text("Detail", style: TextStyle(color: Colors.white, fontSize: 10)),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
             ],
           ),
           const SizedBox(height: 10),
@@ -196,5 +221,68 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
         ],
       ),
     );
+  }
+
+  void _showDetailDialog(Map<String, dynamic> item) async {
+    // Tampilkan loading saat ambil detail barang
+    Get.dialog(const Center(child: CircularProgressIndicator()));
+
+    try {
+      final detailRes = await c.supabase
+          .from('detail_peminjaman')
+          .select('jumlah, alat(nama_alat)')
+          .eq('id_pinjam', item['id_pinjam']);
+      
+      Get.back(); // Tutup loading ambil detail
+
+      final List details = detailRes as List;
+
+      Get.dialog(
+        AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text("Detail Peminjaman", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Peminjam: ${item['users']?['nama']}"),
+              const SizedBox(height: 10),
+              const Text("Barang yang dipinjam:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 5),
+              ...details.map((d) => Text("- ${d['alat']['nama_alat']} (${d['jumlah']} unit)")).toList(),
+              const Divider(),
+              Text("Tgl Ambil: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(item['pengambilan']))}"),
+              Text("Tgl Tenggat: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(item['tenggat']))}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _updateStatus(item['id_pinjam'], 'ditolak'),
+              child: const Text("Tolak", style: TextStyle(color: Colors.red)),
+            ),
+            ElevatedButton(
+              onPressed: () => _updateStatus(item['id_pinjam'], 'disetujui'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              child: const Text("Setujui", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      Get.back();
+      Get.snackbar("Error", "Gagal mengambil detail barang");
+    }
+  }
+
+  String _formatWaktu(String iso) {
+    try {
+      final time = DateTime.parse(iso).toLocal();
+      final diff = DateTime.now().difference(time);
+      if (diff.inMinutes < 60) return "${diff.inMinutes} mnt lalu";
+      if (diff.inHours < 24) return "${diff.inHours} jam lalu";
+      return DateFormat('dd MMM yyyy').format(time);
+    } catch (e) {
+      return iso;
+    }
   }
 }

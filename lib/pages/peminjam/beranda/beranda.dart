@@ -145,16 +145,37 @@ class _PeminjamPageState extends State<PeminjamPage> {
                             Expanded(
                               child: Container(
                                 width: double.infinity,
+                                margin: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(15),
-                                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.12), // 🔥 shadow lembut
+                                      blurRadius: 12,
+                                      spreadRadius: 1,
+                                      offset: const Offset(0, 6), // bayangan ke bawah
+                                    ),
+                                  ],
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(15),
-                                  child: item['gambar_url'] != null 
-                                      ? Image.network(item['gambar_url'], fit: BoxFit.contain)
-                                      : const Icon(Icons.image_not_supported),
+                                  child: Center( // ✅ bikin posisi bener-bener tengah
+                                    child: FractionallySizedBox(
+                                      widthFactor: 0.75,   // 🔽 atur besar kecil gambar
+                                      heightFactor: 0.75,
+                                      child: (item['gambar_url'] ?? "").toString().isNotEmpty
+                                          ? Image.network(
+                                              item['gambar_url'],
+                                              fit: BoxFit.contain,   // ❌ tidak zoom
+                                              alignment: Alignment.center,
+                                              filterQuality: FilterQuality.high,
+                                              errorBuilder: (c, e, s) =>
+                                                  const Icon(Icons.broken_image, color: Colors.grey),
+                                            )
+                                          : const Icon(Icons.image_not_supported, color: Colors.grey),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

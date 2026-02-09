@@ -5,21 +5,42 @@ import 'package:aplikasi_peminjamanbarang/pages/peminjam/riwayat/riwayat.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class PeminjamDrawer extends StatelessWidget {
+class PeminjamDrawer extends StatefulWidget {
   final String currentPage;
   const PeminjamDrawer({super.key, required this.currentPage});
 
   @override
-  Widget build(BuildContext context) {
-    final c = Get.find<AppController>();
-    final user = c.supabase.auth.currentUser;
-    final String userEmail = user?.email ?? "User@gmail.com";
-    final String userName = userEmail.split('@')[0].capitalizeFirst ?? "User";
+  State<PeminjamDrawer> createState() => _PeminjamDrawerState();
+}
 
+class _PeminjamDrawerState extends State<PeminjamDrawer> {
+  final c = Get.find<AppController>();
+
+  String userName = "Memuat...";
+  String userEmail = "Memuat...";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFromCache();
+  }
+
+  void _loadFromCache() {
+    // AMBIL DATA DARI userProfile (Hasil login manual di AppController)
+    final userData = c.userProfile;
+
+    setState(() {
+      userEmail = userData['email'] ?? "admin@gmail.com";
+      userName  = userData['nama'] ?? "Administrator";
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Drawer(
       child: Column(
         children: [
-          // HEADER PROFILE (Biru Gelap)
+          // HEADER PROFILE
           Container(
             padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 30),
             width: double.infinity,
@@ -31,7 +52,7 @@ class PeminjamDrawer extends StatelessWidget {
                   radius: 35,
                   backgroundColor: Colors.white,
                   child: Text(
-                    (userEmail.isNotEmpty ? userEmail[0].toUpperCase() : "U"),
+                    userName.isNotEmpty ? userName[0].toUpperCase() : "U",
                     style: const TextStyle(
                       color: Color(0xFF1F3C58),
                       fontSize: 30,
@@ -55,7 +76,8 @@ class PeminjamDrawer extends StatelessWidget {
               ],
             ),
           ),
-          // MENU ITEMS
+
+          // MENU
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -63,34 +85,34 @@ class PeminjamDrawer extends StatelessWidget {
                 _buildMenuItem(
                   icon: Icons.home,
                   title: "Beranda",
-                  isActive: currentPage == 'beranda',
+                  isActive: widget.currentPage == 'beranda',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const PeminjamPage()); 
+                    Get.off(() => const PeminjamPage());
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.add_box,
                   title: "Peminjaman",
-                  isActive: currentPage == 'peminjaman',
+                  isActive: widget.currentPage == 'peminjaman',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const StatusPeminjamanPage()); 
+                    Get.off(() => const StatusPeminjamanPage());
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.history,
                   title: "Riwayat",
-                  isActive: currentPage == 'riwayat',
+                  isActive: widget.currentPage == 'riwayat',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const RiwayatPage()); 
+                    Get.off(() => const RiwayatPage());
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.logout,
                   title: "Keluar",
-                  onTap: () => _showLogoutDialog(context, c),
+                  onTap: () => _showLogoutDialog(context),
                 ),
               ],
             ),
@@ -110,7 +132,6 @@ class PeminjamDrawer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        // EFEK BACKGROUND AKTIF
         color: isActive ? primaryColor.withOpacity(0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
@@ -134,7 +155,7 @@ class PeminjamDrawer extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context, AppController c) {
+  void _showLogoutDialog(BuildContext context) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

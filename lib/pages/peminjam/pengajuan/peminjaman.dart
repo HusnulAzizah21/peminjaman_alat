@@ -1,5 +1,8 @@
+import 'package:aplikasi_peminjamanbarang/controllers/app_controller.dart';
 import 'package:aplikasi_peminjamanbarang/pages/peminjam/drawer.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 class StatusPeminjamanPage extends StatefulWidget {
   const StatusPeminjamanPage({super.key});
@@ -9,7 +12,32 @@ class StatusPeminjamanPage extends StatefulWidget {
 }
 
 class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
-  bool isTabPengajuan = true; // State untuk navigasi tab
+  bool isTabPengajuan = true;
+  final c = Get.find<AppController>();
+
+  // --- STREAM PENGAJUAN (REAL-TIME) ---
+  Stream<List<Map<String, dynamic>>> _getStreamPengajuan() {
+    final userId = c.userProfile['id_user'];
+    return c.supabase
+        .from('peminjaman')
+        .stream(primaryKey: ['id_pinjam'])
+        .order('id_pinjam', ascending: false)
+        .map((data) => data.where((item) => item['id_peminjam'] == userId).toList());
+  }
+
+  // --- STREAM PINJAMAN SAYA (Hanya yang Disetujui) ---
+  Stream<List<Map<String, dynamic>>> _getStreamPinjamanAktif() {
+    final userId = c.userProfile['id_user'];
+    return c.supabase
+        .from('peminjaman')
+        .stream(primaryKey: ['id_pinjam'])
+        .order('id_pinjam', ascending: false)
+        .map((data) => data
+            .where((item) => 
+                item['id_peminjam'] == userId && 
+                item['status_transaksi'] == 'disetujui')
+            .toList());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,8 +50,8 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text("Peminjaman", 
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+        title: const Text("Status Peminjaman",
+            style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu, color: primaryColor),
@@ -55,18 +83,86 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
             ),
           ),
 
-          // ISI KONTEN (UI ONLY)
+          // KONTEN UTAMA
           Expanded(
-            child: isTabPengajuan 
-              ? _buildUIListPengajuan(primaryColor) 
-              : _buildUIListPinjamanSaya(),
+            child: isTabPengajuan
+                ? _buildRealListPengajuan(primaryColor)
+                : _buildRealListPinjamanSaya(),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET TAB ITEM ---
+  // --- UI TAB 1: LIST PENGAJUAN ---
+  Widget _buildRealListPengajuan(Color primaryColor) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _getStreamPengajuan(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("Belum ada riwayat pengajuan"));
+        }
+
+        final data = snapshot.data!;
+        return ListView.builder(
+          padding: const EdgeInsets.all(20),
+          itemCount: data.length,
+          itemBuilder: (context, index) {
+            final item = data[index];
+            final status = item['status_transaksi'] ?? 'menunggu';
+            
+            // Perbaikan parsing tanggal created_at
+            final String rawDate = item['created_at'] ?? DateTime.now().toIso8601String();
+            final tglRequest = DateTime.parse(rawDate).toLocal();
+
+            Color statusColor = primaryColor; // Biru untuk menunggu
+            if (status == 'disetujui') statusColor = Colors.green;
+            if (status == 'ditolak') statusColor = Colors.red;
+
+            return _cardPengajuan(
+                status.toString().capitalizeFirst!,
+                statusColor,
+                c.userProfile['nama'] ?? "User",
+                DateFormat('dd MMM yyyy, HH:mm').format(tglRequest));
+          },
+        );
+      },
+    );
+  }
+
+  // --- UI TAB 2: PINJAMAN AKTIF ---
+  Widget _buildRealListPinjamanSaya() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _getStreamPinjamanAktif(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("Tidak ada pinjaman aktif"));
+        }
+
+        final data = snapshot.data!;
+        return ListView.builder(
+          padding: const EdgeInsets.all(20),
+          itemCount: data.length,
+          itemBuilder: (context, index) {
+            final item = data[index];
+            return _cardPinjamanAktif(
+                "Peminjaman #${item['id_pinjam']}",
+                DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(item['pengambilan'])),
+                DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(item['tenggat'])));
+          },
+        );
+      },
+    );
+  }
+
+  // --- WIDGET HELPER ---
+
   Widget _buildTabItem(String title, bool isActive, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
@@ -86,18 +182,6 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
           ),
         ),
       ),
-    );
-  }
-
-  // --- UI TAB 1: PENGAJUAN (DUMMY) ---
-  Widget _buildUIListPengajuan(Color primaryColor) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _cardPengajuan("Menunggu", primaryColor, "Monica", "10 mnt yg lalu"),
-        _cardPengajuan("Ditolak", Colors.red, "Monica", "2 jam yg lalu"),
-        _cardPengajuan("Disetujui", Colors.green, "Monica", "Kemarin"),
-      ],
     );
   }
 
@@ -133,7 +217,7 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const Text("Pengajuan peminjaman 1 alat", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text("Status pengajuan Anda", style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ],
@@ -151,18 +235,7 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
     );
   }
 
-  // --- UI TAB 2: PINJAMAN SAYA (DUMMY DENGAN DROPDOWN) ---
-  Widget _buildUIListPinjamanSaya() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _cardPinjamanAktif("Sony Alpha A7", "08/02/2026 - 10:00", "10/02/2026 - 17:00"),
-        _cardPinjamanAktif("Tripod Takara", "07/02/2026 - 09:00", "09/02/2026 - 17:00"),
-      ],
-    );
-  }
-
-  Widget _cardPinjamanAktif(String alat, String tglAmbil, String tglBalik) {
+  Widget _cardPinjamanAktif(String title, String tglAmbil, String tglBalik) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       decoration: BoxDecoration(
@@ -170,63 +243,31 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.green.shade400, width: 1.5),
       ),
-      child: Theme(
-        data: ThemeData().copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-          title: const Text("Pinjaman Aktif", 
-            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _dateBox("Pengambilan", tglAmbil),
-                Container(width: 1, height: 25, color: Colors.grey.shade300),
-                _dateBox("Tenggat", tglBalik),
-              ],
-            ),
-          ),
+      child: ExpansionTile(
+        title: Text(title, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+        subtitle: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(15),
-              child: Row(
-                children: [
-                  Container(
-                    width: 50, height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.camera_alt, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(alat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        const Text("Elektronik", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                  const Text("1 unit", style: TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
+            _dateBoxSmall("Ambil", tglAmbil),
+            _dateBoxSmall("Tenggat", tglBalik),
           ],
         ),
+        children: const [
+          Padding(
+            padding: EdgeInsets.all(15),
+            child: Text("Silakan kembalikan alat tepat waktu. Barang yang sudah disetujui dapat diambil di petugas."),
+          )
+        ],
       ),
     );
   }
 
-  Widget _dateBox(String label, String date) {
+  Widget _dateBoxSmall(String label, String date) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        Text(date, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(date, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
       ],
     );
   }

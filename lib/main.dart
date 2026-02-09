@@ -31,6 +31,7 @@ class MyApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ),
       ),
+      
       debugShowCheckedModeBanner: false,
       home: const SplashPage(),
     );
