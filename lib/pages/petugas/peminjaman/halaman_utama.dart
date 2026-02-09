@@ -46,29 +46,66 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
     }
   }
 
-  // ================= UPDATE STATUS =================
-  Future<void> _updateStatus(dynamic idPinjam, String status) async {
+  // ================= UPDATE STATUS (DIPERBAIKI) =================
+  Future<void> _updateStatus(dynamic idPinjam, String status, {String? alasan}) async {
     try {
-      // Menampilkan loading sederhana
       Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
 
-      await c.supabase.from('peminjaman').update({
-        'status_transaksi': status,
-        'id_petugas': c.userProfile['id_user'], 
-      }).eq('id_pinjam', idPinjam);
+      // PERBAIKAN DI SINI: Menggunakan userProfile['id_user'] sesuai AppController kamu
+      final String? idPetugas = c.userProfile['id_user']?.toString();
 
-      Get.back(); // Tutup loading
-      if (Get.isDialogOpen!) Get.back(); // Tutup dialog detail jika ada
+      Map<String, dynamic> updateData = {
+        'status_transaksi': status,
+        'id_petugas': idPetugas, 
+      };
+
+      if (status == 'ditolak' && alasan != null) {
+        updateData['alasan_penolakan'] = alasan;
+      }
+
+      await c.supabase.from('peminjaman').update(updateData).eq('id_pinjam', idPinjam);
+
+      // Menutup semua dialog (loading & detail)
+      if (Get.isDialogOpen!) Get.back(); 
+      if (Get.isDialogOpen!) Get.back(); 
       
-      setState(() {}); // Refresh list data
+      setState(() {}); // Refresh list
       
       Get.snackbar("Berhasil", "Permintaan telah $status",
           backgroundColor: status == 'disetujui' ? Colors.green : Colors.red, 
           colorText: Colors.white);
     } catch (e) {
-      Get.back(); // Tutup loading
+      if (Get.isDialogOpen!) Get.back(); // Tutup loading jika error
       Get.snackbar("Error", "Gagal update status: $e", backgroundColor: Colors.red);
     }
+  }
+
+  // Fungsi pembantu untuk memunculkan input alasan saat menolak
+  void _showRejectDialog(dynamic idPinjam) {
+    final TextEditingController alasanController = TextEditingController();
+    Get.dialog(
+      AlertDialog(
+        title: const Text("Alasan Penolakan"),
+        content: TextField(
+          controller: alasanController,
+          decoration: const InputDecoration(hintText: "Masukkan alasan..."),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () {
+              if (alasanController.text.isNotEmpty) {
+                _updateStatus(idPinjam, 'ditolak', alasan: alasanController.text);
+              } else {
+                Get.snackbar("Peringatan", "Alasan harus diisi", backgroundColor: Colors.orange);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Tolak", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -161,7 +198,7 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
               nama,
               "ID Pinjam: ${item['id_pinjam']}",
               _formatWaktu(item['pengambilan']),
-              isRiwayat ? (statusStr == 'disetujui' ? "Disetujui" : "Ditolak") : null,
+              isRiwayat ? (statusStr == 'disetujui' ? "Disetujui" : (statusStr == 'ditolak' ? "Ditolak" : "Selesai")) : null,
               item,
             );
           },
@@ -171,7 +208,9 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
   }
 
   Widget _cardPersetujuan(String nama, String desc, String waktu, String? status, Map<String, dynamic> item) {
-    Color statusColor = status == "Disetujui" ? Colors.green : Colors.red;
+    Color statusColor = Colors.grey;
+    if(status == "Disetujui" || status == "Selesai") statusColor = Colors.green;
+    if(status == "Ditolak") statusColor = Colors.red;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -179,7 +218,7 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,7 +263,6 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
   }
 
   void _showDetailDialog(Map<String, dynamic> item) async {
-    // Tampilkan loading saat ambil detail barang
     Get.dialog(const Center(child: CircularProgressIndicator()));
 
     try {
@@ -233,7 +271,7 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
           .select('jumlah, alat(nama_alat)')
           .eq('id_pinjam', item['id_pinjam']);
       
-      Get.back(); // Tutup loading ambil detail
+      if (Get.isDialogOpen!) Get.back(); // Tutup loading
 
       final List details = detailRes as List;
 
@@ -257,11 +295,11 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => _updateStatus(item['id_pinjam'], 'ditolak'),
+              onPressed: () => _showRejectDialog(item['id_pinjam']), 
               child: const Text("Tolak", style: TextStyle(color: Colors.red)),
             ),
             ElevatedButton(
-              onPressed: () => _updateStatus(item['id_pinjam'], 'disetujui'),
+              onPressed: () => _updateStatus(item['id_pinjam'], 'disetujui'), 
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text("Setujui", style: TextStyle(color: Colors.white)),
             ),
@@ -269,7 +307,7 @@ class _PersetujuanPageState extends State<PersetujuanPage> {
         ),
       );
     } catch (e) {
-      Get.back();
+      if (Get.isDialogOpen!) Get.back();
       Get.snackbar("Error", "Gagal mengambil detail barang");
     }
   }

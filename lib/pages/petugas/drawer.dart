@@ -11,11 +11,13 @@ class PetugasDrawer extends StatelessWidget {
   const PetugasDrawer({super.key, required this.currentPage});
 
   @override
-  Widget build(BuildContext context) {
+    Widget build(BuildContext context) {
     final c = Get.find<AppController>();
-    final user = c.supabase.auth.currentUser;
-    final String userEmail = user?.email ?? "monica@gmail.com";
-    final String userName = userEmail.split('@')[0].capitalizeFirst ?? "Monica";
+    
+    // Mengambil data dari userProfile yang diisi saat login manual
+    // Pastikan key 'email' dan 'nama' sesuai dengan nama kolom di tabel users kamu
+    final String userEmail = c.userProfile['email'] ?? "Email tidak tersedia";
+    final String userName = c.userProfile['nama'] ?? "User";
 
     return Drawer(
       backgroundColor: Colors.white,
@@ -86,7 +88,7 @@ class PetugasDrawer extends StatelessWidget {
                   isActive: currentPage == 'pengembalian',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const PengembalianPetugasPage()); 
+                    Get.off(() => const PetugasPengembalianPage()); 
                   },
                 ),
                 _buildMenuItem(

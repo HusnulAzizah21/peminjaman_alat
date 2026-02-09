@@ -1,219 +1,207 @@
+import 'package:aplikasi_peminjamanbarang/pages/petugas/drawer.dart';
+import 'package:aplikasi_peminjamanbarang/pages/petugas/pengembalian/detail_pengembalian.dart';
 import 'package:flutter/material.dart';
-import '../drawer.dart'; // Pastikan path file drawer petugas sudah benar
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import '../../../controllers/app_controller.dart'; 
 
-class PengembalianPetugasPage extends StatefulWidget {
-  const PengembalianPetugasPage({super.key});
+class PetugasPengembalianPage extends StatefulWidget {
+  const PetugasPengembalianPage({super.key});
 
   @override
-  State<PengembalianPetugasPage> createState() => _PengembalianPetugasPageState();
+  State<PetugasPengembalianPage> createState() => _PetugasPengembalianPageState();
 }
 
-class _PengembalianPetugasPageState extends State<PengembalianPetugasPage> {
-  bool isTabAktif = true; 
-  final Color primaryColor = const Color(0xFF1F3C58);
+class _PetugasPengembalianPageState extends State<PetugasPengembalianPage> {
+  final c = Get.find<AppController>();
+  bool isTabAktif = true;
+
+  // Variabel tambahan untuk mendukung fungsi hitungSelisihDanDenda
+  int hariTerlambat = 0;
+  int nominalDenda = 0;
+  DateTime selectedDate = DateTime.now();
+  Map<String, dynamic> data = {}; // Akan diisi saat memilih item jika diperlukan secara global
+
+  // ================= LOGIKA HITUNG DENDA =================
+  void hitungSelisihDanDenda(Map<String, dynamic> itemData) {
+    if (itemData['tenggat'] == null) return;
+
+    DateTime tenggat = DateTime.parse(itemData['tenggat']);
+    // Menghilangkan komponen waktu agar perhitungan selisih hari akurat
+    DateTime tglKembali = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    DateTime tglTenggatSaja = DateTime(tenggat.year, tenggat.month, tenggat.day);
+
+    if (tglKembali.isAfter(tglTenggatSaja)) {
+      int selisih = tglKembali.difference(tglTenggatSaja).inDays;
+      
+      // Jika lewat jam di hari yang sama namun secara tanggal sudah lewat, minimal 1 hari
+      if (selisih == 0) selisih = 1; 
+      
+      setState(() {
+        hariTerlambat = selisih;
+        nominalDenda = selisih * 5000;
+      });
+    } else {
+      setState(() {
+        hariTerlambat = 0;
+        nominalDenda = 0;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      // Drawer dipanggil agar menu samping bisa diakses
-      drawer: const PetugasDrawer(currentPage: 'Pengembalian'),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          "Pengembalian",
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
-        ),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: Icon(Icons.menu, color: primaryColor),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-      ),
+  backgroundColor: Colors.white,
+  // Drawer sudah terpasang di sini
+  drawer: const PetugasDrawer(currentPage: 'Pengembalian'), 
+  appBar: AppBar(
+    title: const Text("Pengembalian", 
+        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1F3C58))),
+    centerTitle: true,
+    backgroundColor: Colors.white,
+    elevation: 0,
+    // PERBAIKAN: Gunakan Builder agar IconButton bisa mengakses ScaffoldState untuk membuka drawer
+    leading: Builder(
+      builder: (context) {
+        return IconButton(
+          icon: const Icon(Icons.menu, color: Color(0xFF1F3C58)),
+          onPressed: () {
+            Scaffold.of(context).openDrawer(); // Ini fungsi untuk membuka drawer
+          },
+        );
+      },
+    ),
+  ),
       body: Column(
         children: [
-          // 1. SEARCH BAR
+          // Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.all(20),
             child: TextField(
               decoration: InputDecoration(
                 hintText: "Pencarian . . .",
-                hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide(color: primaryColor.withOpacity(0.3)),
-                ),
-              ),
-            ), // Kurung penutup TextField yang benar
-          ),
-
-          // 2. TAB SWITCHER
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.shade50,
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Row(
-                children: [
-                  _buildTabItem("Peminjaman Aktif", isTabAktif, () {
-                    setState(() => isTabAktif = true);
-                  }),
-                  _buildTabItem("Selesai", !isTabAktif, () {
-                    setState(() => isTabAktif = false);
-                  }),
-                ],
+                    borderRadius: BorderRadius.circular(25), 
+                    borderSide: BorderSide(color: Colors.grey.shade300)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
             ),
           ),
+          
+          // Tab Bar Custom (Peminjaman Aktif | Selesai)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                _tabBtn("Peminjaman Aktif", isTabAktif, () => setState(() => isTabAktif = true)),
+                const SizedBox(width: 10),
+                _tabBtn("Selesai", !isTabAktif, () => setState(() => isTabAktif = false)),
+              ],
+            ),
+          ),
 
-          // 3. DAFTAR KONTEN BERDASARKAN TAB
           Expanded(
-            child: isTabAktif 
-                ? _buildListPeminjamanAktif() 
-                : _buildListSelesai(),
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: c.supabase.from('peminjaman')
+                  .stream(primaryKey: ['id_pinjam'])
+                  .order('id_pinjam', ascending: false),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text("Tidak ada data"));
+                }
+                
+                final listData = isTabAktif 
+                    ? snapshot.data!.where((e) => e['status_transaksi'] != 'selesai').toList()
+                    : snapshot.data!.where((e) => e['status_transaksi'] == 'selesai').toList();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: listData.length,
+                  itemBuilder: (context, index) => _itemCard(listData[index]),
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  // WIDGET UNTUK ITEM TAB
-  Widget _buildTabItem(String title, bool isActive, VoidCallback onTap) {
+  Widget _tabBtn(String label, bool active, VoidCallback onTap) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
         child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF1F3C58) : Colors.transparent,
-            borderRadius: BorderRadius.circular(25),
+            color: active ? const Color(0xFF1F3C58) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: active ? null : Border.all(color: Colors.grey.shade300),
           ),
-          child: Text(
-            title,
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.grey,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+          child: Text(label, 
+              style: TextStyle(
+                  color: active ? Colors.white : Colors.grey, 
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 12)),
         ),
       ),
     );
   }
 
-  // TAB 1: DAFTAR PEMINJAMAN AKTIF
-  Widget _buildListPeminjamanAktif() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _buildPengembalianCard("Aura", "Peminjaman 1 alat", "21/1/2026 - 08:30"),
-      ],
-    );
-  }
+  Widget _itemCard(Map<String, dynamic> item) {
+    String namaPeminjam = item['id_peminjam']?.toString() ?? "Tanpa Nama";
+    String tanggal = "-";
+    if (item['created_at'] != null) {
+      tanggal = DateFormat('dd/MM/yyyy').format(DateTime.parse(item['created_at']));
+    }
 
-  // TAB 2: DAFTAR SELESAI
-  Widget _buildListSelesai() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _buildPengembalianCard("Aura", "Peminjaman 2 alat", "16/1/2026 | 13:30 - 21/1/2026 | 13:30"),
-        _buildPengembalianCard("Kania", "Peminjaman 2 alat", "11/1/2026 | 13:30 - 15/1/2026 | 13:30"),
-        _buildPengembalianCard("Shalsa", "Peminjaman 3 alat", "12/1/2026 | 13:30 - 15/1/2026 | 13:30"),
-      ],
-    );
-  }
-
-  // WIDGET KARTU ITEM
-  Widget _buildPengembalianCard(String nama, String deskripsi, String waktu) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(namaPeminjam, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text("Peminjaman ${item['jumlah_alat'] ?? 0} alat", 
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 5),
               Row(
                 children: [
-                  Container(
-                    width: 3,
-                    height: 35,
-                    color: primaryColor,
-                  ),
-                  const SizedBox(width: 15),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nama,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        deskripsi,
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                  const SizedBox(width: 5),
+                  Text(tanggal, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  minimumSize: const Size(60, 30),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  "Detail",
-                  style: TextStyle(fontSize: 10, color: Colors.white),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 14, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                waktu,
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-              ),
-            ],
-          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1F3C58), 
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+            onPressed: () {
+              // Menjalankan kalkulasi denda sebelum pindah halaman (opsional)
+              hitungSelisihDanDenda(item);
+              Get.to(() => DetailPengembalianPage(data: item));
+            },
+            child: const Text("Detail", style: TextStyle(fontSize: 12, color: Colors.white)),
+          )
         ],
       ),
     );
   }
-} // Penutup class yang tadi hilang
+}
