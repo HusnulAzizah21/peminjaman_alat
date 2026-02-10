@@ -1,4 +1,4 @@
-import 'package:aplikasi_peminjamanbarang/pages/admin/log_aktivitas/halaman_log.dart';
+import 'package:aplikasi_peminjamanbarang/pages/admin/data_peminjaman/halaman_utama.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -17,15 +17,14 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
   final c = Get.find<AppController>();
   final Color primaryColor = const Color(0xFF1F3C58);
 
-  // --- LOGIKA GRAFIK: PROSES DATA DARI SUPABASE ---
+  // --- LOGIKA GRAFIK ---
   List<double> _processWeeklyData(List<Map<String, dynamic>> data) {
     List<double> counts = List.filled(7, 0.0);
     for (var item in data) {
       if (item['pengambilan'] != null) {
         try {
           DateTime date = DateTime.parse(item['pengambilan'].toString());
-          // weekday: Senin=1...Minggu=7. Ubah ke index 0-6
-          int dayIndex = date.weekday - 1;
+          int dayIndex = date.weekday - 1; // Senin=1 -> index 0
           counts[dayIndex] += 1;
         } catch (e) {
           debugPrint("Error parse tanggal grafik: $e");
@@ -33,6 +32,40 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
       }
     }
     return counts;
+  }
+
+  // --- AMBIL DATA ALAT ---
+  Future<List<Map<String, dynamic>>> _fetchAlat() async {
+    final response = await c.supabase.from('alat').select();
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // --- AMBIL DATA PEMINJAMAN TERBARU ---
+  // Ambil semua data, urut dan limit di Flutter
+Future<List<Map<String, dynamic>>> _fetchPeminjaman({int limit = 5}) async {
+  final response = await c.supabase.from('peminjaman').select();
+  
+  List<Map<String, dynamic>> listData = List<Map<String, dynamic>>.from(response);
+
+  // Urut berdasarkan pengambilan (descending)
+  listData.sort((a, b) {
+    DateTime dateA = DateTime.tryParse(a['pengambilan'] ?? '') ?? DateTime(1970);
+    DateTime dateB = DateTime.tryParse(b['pengambilan'] ?? '') ?? DateTime(1970);
+    return dateB.compareTo(dateA);
+  });
+
+  // Ambil hanya limit terakhir
+  if (listData.length > limit) {
+    listData = listData.sublist(0, limit);
+  }
+
+  return listData;
+}
+
+  // --- AMBIL DATA PEMINJAMAN UNTUK CHART ---
+  Future<List<Map<String, dynamic>>> _fetchPeminjamanChart() async {
+    final response = await c.supabase.from('peminjaman').select();
+    return List<Map<String, dynamic>>.from(response);
   }
 
   @override
@@ -61,91 +94,126 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               const SizedBox(height: 10),
 
-              // --- ROW 1: STATS CARDS (Real-time dari tabel Alat) ---
-              StreamBuilder(
-                stream: c.supabase.from('alat').stream(primaryKey: ['id_alat']),
+              // ================= STAT CARDS =================
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _fetchAlat(),
                 builder: (context, snapshot) {
                   int total = 0, tersedia = 0, dipinjam = 0;
+
                   if (snapshot.hasData) {
                     total = snapshot.data!.length;
-                    tersedia = snapshot.data!.where((e) => (e['stok_total'] ?? 0) > 0).length;
-                    dipinjam = snapshot.data!.where((e) => e['status'] == 'Dipinjam').length;
+                    tersedia = snapshot.data!
+                        .where((e) => (e['stok_total'] ?? 0) > 0)
+                        .length;
+                    dipinjam = snapshot.data!
+                        .where((e) => e['status'] == 'Dipinjam')
+                        .length;
                   }
+
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatCard("Total Alat", total.toString(), Icons.inventory_2, Colors.blueGrey),
-                      _buildStatCard("Tersedia", tersedia.toString(), Icons.check_circle, Colors.green),
-                      _buildStatCard("Dipinjam", dipinjam.toString(), Icons.swap_horiz, Colors.red),
+                      _buildStatCard("Total Alat", total.toString(),
+                          Icons.inventory_2, Colors.blueGrey),
+                      _buildStatCard("Tersedia", tersedia.toString(),
+                          Icons.check_circle, Colors.green),
+                      _buildStatCard("Dipinjam", dipinjam.toString(),
+                          Icons.swap_horiz, Colors.red),
                     ],
                   );
                 },
               ),
 
               const SizedBox(height: 25),
-              Text("Tren Peminjaman Mingguan", 
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700])),
+
+              // ================= JUDUL GRAFIK =================
+              Text(
+                "Tren Peminjaman Mingguan",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+
               const SizedBox(height: 15),
 
-              // --- ROW 2: GRAFIK (Real-time dari tabel Peminjaman) ---
+              // ================= GRAFIK =================
               Container(
                 height: 200,
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(15),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                  ],
                   border: Border.all(color: Colors.grey.shade100),
                 ),
-                child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: c.supabase.from('peminjaman').stream(primaryKey: ['id_peminjaman']),
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _fetchPeminjamanChart(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    List<double> weeklyData = _processWeeklyData(snapshot.data!);
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final weeklyData = _processWeeklyData(snapshot.data!);
                     return _buildWeeklyChart(weeklyData);
                   },
                 ),
               ),
 
               const SizedBox(height: 25),
-              
-              // --- ROW 3: AKTIVITAS TERBARU HEADER ---
+
+              // ================= HEADER AKTIVITAS =================
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Aktivitas Peminjaman Terbaru", 
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Aktivitas Peminjaman Terbaru",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
                   TextButton(
-                    onPressed: () => Get.to(() => const LogAktivitasPage()),
-                    child: Text("Lihat Log", style: TextStyle(color: primaryColor, fontSize: 12)),
+                    onPressed: () => Get.to(() => const AdminDataPeminjamanPage()),
+                    child: Text(
+                      "Lihat Log",
+                      style: TextStyle(color: primaryColor, fontSize: 12),
+                    ),
                   ),
                 ],
               ),
 
-              // --- ROW 4: AKTIVITAS TERBARU LIST (Real-time) ---
-              StreamBuilder<List<Map<String, dynamic>>>(
-                stream: c.supabase
-                    .from('peminjaman')
-                    .stream(primaryKey: ['id_peminjaman'])
-                    .order('pengambilan', ascending: false)
-                    .limit(5),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(child: Text("Belum ada transaksi")),
+              const SizedBox(height: 10),
+
+              // ================= AKTIVITAS (SCROLL SENDIRI) =================
+              SizedBox(
+                height: 320, 
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _fetchPeminjaman(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text("Belum ada transaksi"));
+                    }
+
+                    return ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: snapshot.data!.length,
+                      itemBuilder: (context, index) {
+                        final item = snapshot.data![index];
+                        return _buildRecentActivityItem(item);
+                      },
                     );
-                  }
-                  return Column(
-                    children: snapshot.data!.map((item) => _buildRecentActivityItem(item)).toList(),
-                  );
-                },
+                  },
+                ),
               ),
+
               const SizedBox(height: 30),
             ],
           ),
@@ -154,7 +222,7 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
     );
   }
 
-  // --- WIDGET HELPER: STAT CARD ---
+  // --- STAT CARD ---
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
       width: Get.width * 0.28,
@@ -176,81 +244,169 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
     );
   }
 
-  // --- WIDGET HELPER: CHART ---
+  // --- CHART ---
   Widget _buildWeeklyChart(List<double> data) {
-    double maxVal = data.reduce((a, b) => a > b ? a : b);
+    // Mencari nilai tertinggi untuk skala Y
+    double maxVal = data.isEmpty ? 5 : data.reduce((a, b) => a > b ? a : b);
+    
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: maxVal < 5 ? 5 : maxVal + 2,
+        // Memberikan ruang 20% di atas bar tertinggi agar tidak mentok
+        maxY: maxVal < 5 ? 5 : (maxVal + (maxVal * 0.2)), 
         barTouchData: BarTouchData(enabled: true),
-        gridData: const FlGridData(show: false),
+        
+        // Mengatur garis grid horizontal (seperti di gambar)
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 5, // Garis muncul setiap kelipatan 5 unit
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: Colors.grey.withOpacity(0.2),
+            strokeWidth: 1,
+          ),
+        ),
+        
         borderData: FlBorderData(show: false),
+        
         titlesData: FlTitlesData(
           show: true,
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          
+          // Sisi Kiri (Angka Satuan)
+          leftTitles: AxisTitles(
+            axisNameWidget: const Text(
+              "(jumlah alat yang dipinjam)",
+              style: TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+            axisNameSize: 20,
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  value.toInt().toString(),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                );
+              },
+            ),
+          ),
+          
+          // Sisi Bawah (Hari: Senin - Sabtu)
           bottomTitles: AxisTitles(
+            axisNameWidget: const Text(
+              "(hari dalam 1 minggu)",
+              style: TextStyle(fontSize: 10, color: Colors.grey),
+            ),
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (val, meta) {
-                const days = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
-                return Text(days[val.toInt()], style: const TextStyle(fontSize: 10, color: Colors.grey));
+                // Index 0-5 mewakili Senin-Sabtu
+                if (val < 0 || val > 5) return const SizedBox();
+                const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    days[val.toInt()],
+                    style: const TextStyle(
+                      fontSize: 12, 
+                      color: Colors.grey, 
+                      fontWeight: FontWeight.bold
+                    ),
+                  ),
+                );
               },
             ),
           ),
         ),
-        barGroups: List.generate(7, (i) => BarChartGroupData(
-          x: i,
-          barRods: [BarChartRodData(toY: data[i], color: primaryColor, width: 15, borderRadius: BorderRadius.circular(4))],
-        )),
+        
+        // Generate hanya 6 grup bar (Senin sampai Sabtu)
+        barGroups: List.generate(
+          6, 
+          (i) => BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                // Pastikan panjang list data minimal 6 agar tidak error range
+                toY: i < data.length ? data[i] : 0,
+                color: primaryColor, 
+                width: 18,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              )
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  // --- WIDGET HELPER: ACTIVITY ITEM (REAL DATA) ---
+  // --- RECENT ACTIVITY ITEM ---
   Widget _buildRecentActivityItem(Map<String, dynamic> item) {
-    String status = item['status_transaksi'] ?? 'pending';
-    Color statusColor = status == 'selesai' ? Colors.green : Colors.orange;
+  String userId = item['user_id']?.toString() ?? '-';
+  String barangId = item['barang_id']?.toString() ?? '-';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
-      ),
+  String waktu = '-';
+  if (item['pengambilan'] != null) {
+    try {
+      final dt = DateTime.parse(item['pengambilan']);
+      waktu = DateFormat('dd MMM yyyy • HH:mm').format(dt);
+    } catch (_) {}
+  }
+
+  String title = "Peminjaman Barang";
+  String subtitle = "User: $userId | Barang: $barangId";
+
+  IconData icon = Icons.notifications;
+
+  return Card(
+    margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    elevation: 2,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: statusColor.withOpacity(0.1),
-            child: Icon(status == 'selesai' ? Icons.check : Icons.timer, color: statusColor, size: 18),
-          ),
-          const SizedBox(width: 15),
+          Icon(icon, color: Colors.blueAccent, size: 28),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Transaksi #${item['id_peminjaman']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Text("Status: ${status.toUpperCase()}", style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  waktu,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                item['pengambilan'] != null 
-                    ? DateFormat('dd MMM').format(DateTime.parse(item['pengambilan'])) 
-                    : "-",
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
-              ),
-              const Text("Peminjaman", style: TextStyle(fontSize: 9, color: Colors.blueGrey)),
-            ],
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.green,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              "Peminjaman",
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

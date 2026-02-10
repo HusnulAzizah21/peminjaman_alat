@@ -47,8 +47,8 @@ class BerandaPetugas extends StatelessWidget {
                 
                 // Perbaikan Error '>' dengan pengecekan null (null safety)
                 final int totalAlat = daftarAlat.length;
-                final int tersedia = daftarAlat.where((e) => (e['stok'] ?? 0) > 0).length;
-                final int dipinjam = daftarAlat.where((e) => (e['stok'] ?? 0) == 0).length;
+                final int tersedia = daftarAlat.where((e) => (e['stok_total'] ?? 0) > 0).length;
+                final int dipinjam = daftarAlat.where((e) => (e['stok_total'] ?? 0) == 0).length;
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

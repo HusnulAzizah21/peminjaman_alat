@@ -57,8 +57,7 @@ class _LogAktivitasPageState extends State<LogAktivitasPage> {
           // --- LIST LOG REAL-TIME ---
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // NOTE: Kita melakukan query select dengan join ke tabel 'user'
-              // Pastikan di Supabase relasi id_user sudah benar.
+              // NOTE: Melakukan query select dengan join ke tabel 'user'
               stream: c.supabase
                   .from('log_aktivitas')
                   .stream(primaryKey: ['id_log'])
@@ -76,8 +75,6 @@ class _LogAktivitasPageState extends State<LogAktivitasPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   itemCount: data.length,
                   // ... di dalam ListView.builder ...
-                  // ... di dalam ListView.builder ...
-// ... di dalam ListView.builder ...
                   itemBuilder: (context, index) {
                     final log = data[index];
                     final String idUser = log['id_user'] ?? "";

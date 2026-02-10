@@ -41,7 +41,7 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
   }
 
       // --- SIMPAN OTOMATIS KE BUCKET & DATABASE ---
-      Future<void> _saveAlat() async {
+Future<void> _saveAlat() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -49,7 +49,7 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
     try {
       String? imageUrl;
 
-      // 1. UPLOAD GAMBAR KE BUCKET
+      // 1. UPLOAD GAMBAR KE BUCKET (Jangan diotak-atik sesuai request)
       if (_imageBytes != null && _fileName != null) {
         final String fileExt = _fileName!.split('.').last;
         final String path = "alat/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
@@ -80,15 +80,23 @@ class _TambahAlatPageState extends State<TambahAlatPage> {
         );
         return;
       }
-
-      // 3. INSERT KE DATABASE ✅ (INI YANG SEBELUMNYA HILANG)
+ 
+      // 3. INSERT KE DATABASE 
       await c.supabase.from('alat').insert({
         'nama_alat': nameController.text.trim(),
-        'stok': int.parse(stokController.text),
-        'id_kategori': int.parse(selectedKategori!), // sesuaikan tipe DB
-        'foto': imageUrl, // nullable boleh
+        'stok_total': int.parse(stokController.text),
+        'id_kategori': int.parse(selectedKategori!), 
+        'gambar_url': imageUrl, 
         'created_at': DateTime.now().toIso8601String(),
       });
+
+      // --- TAMBAHAN: CATAT KE LOG AKTIVITAS (TANPA AUTH) ---
+      await c.supabase.from('log_aktivitas').insert({
+      'id_user': null, 
+      'aksi': 'Tambah Alat',
+      'keterangan': 'Menambahkan alat baru: ${nameController.text.trim()} dengan stok ${stokController.text}',
+      'created_at': DateTime.now().toIso8601String(),
+    });
 
       // 4. SUKSES
       if (mounted) {
