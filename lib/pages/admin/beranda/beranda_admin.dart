@@ -100,7 +100,7 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
                   border: Border.all(color: Colors.grey.shade100),
                 ),
                 child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: c.supabase.from('peminjaman').stream(primaryKey: ['id_peminjaman']),
+                  stream: c.supabase.from('peminjaman').stream(primaryKey: ['id_pinjam']),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     List<double> weeklyData = _processWeeklyData(snapshot.data!);
@@ -128,7 +128,7 @@ class _AdminBerandaPageState extends State<AdminBerandaPage> {
               StreamBuilder<List<Map<String, dynamic>>>(
                 stream: c.supabase
                     .from('peminjaman')
-                    .stream(primaryKey: ['id_peminjaman'])
+                    .stream(primaryKey: ['id_pinjam'])
                     .order('pengambilan', ascending: false)
                     .limit(5),
                 builder: (context, snapshot) {

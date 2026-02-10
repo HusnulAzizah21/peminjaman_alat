@@ -1,205 +1,498 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../controllers/app_controller.dart';
 
-class DetailPengembalianPage extends StatefulWidget {
-  final Map<String, dynamic> data; // Data dari halaman daftar petugas
-  const DetailPengembalianPage({super.key, required this.data});
+// ────────────────────────────────────────────────
+// 1. MODEL / DATA CLASS
+// ────────────────────────────────────────────────
 
-  @override
-  State<DetailPengembalianPage> createState() => _DetailPengembalianPageState();
+// Model untuk data peminjaman utama
+class Peminjaman {
+  final int idPinjam;
+  final String idPeminjam;
+  final String? pengambilan;     // tanggal pengambilan
+  final String? tenggat;         // tanggal tenggat
+  final String? statusTransaksi;
+
+  Peminjaman.fromMap(Map<String, dynamic> map)
+      : idPinjam = map['id_pinjam'] as int,
+        idPeminjam = map['id_peminjam'] as String,
+        pengambilan = map['pengambilan'] as String?,
+        tenggat = map['tenggat'] as String?,
+        statusTransaksi = map['status_transaksi'] as String?;
+
+  // Helper untuk mengubah string tanggal menjadi DateTime
+  DateTime? get pengambilanDate => pengambilan != null ? DateTime.parse(pengambilan!) : null;
+  DateTime? get tenggatDate => tenggat != null ? DateTime.parse(tenggat!) : null;
 }
 
-class _DetailPengembalianPageState extends State<DetailPengembalianPage> {
-  final c = Get.find<AppController>();
-  
-  // State untuk input dan hasil hitungan
-  DateTime selectedDate = DateTime.now();
-  TimeOfDay selectedTime = TimeOfDay.now();
-  List listAlat = [];
-  int hariTerlambat = 0;
-  int denda = 0;
-  bool isLoading = true;
-  bool isSuccess = false;
+// Model untuk setiap item alat yang dipinjam
+class AlatDipinjam {
+  final int jumlah;
+  final String namaAlat;
+  final String? kategori;
+
+  AlatDipinjam({
+    required this.jumlah,
+    required this.namaAlat,
+    this.kategori,
+  });
+
+  // Factory untuk parse data dari response Supabase (dari join)
+  factory AlatDipinjam.fromDetailMap(Map<String, dynamic> detail) {
+    final alatMap = detail['alat'] as Map<String, dynamic>? ?? {};
+    final kategoriMap = alatMap['kategori'] as Map<String, dynamic>? ?? {};
+
+    return AlatDipinjam(
+      jumlah: detail['jumlah'] as int? ?? 1,
+      namaAlat: alatMap['nama_alat'] as String? ?? 'Alat tidak diketahui',
+      kategori: kategoriMap['nama_kategori'] as String? ?? '-',
+    );
+  }
+}
+
+// ────────────────────────────────────────────────
+// 2. SERVICE / REPOSITORY (logika komunikasi database)
+// ────────────────────────────────────────────────
+
+class PengembalianService {
+  final SupabaseClient supabase;
+
+  PengembalianService(this.supabase);
+
+  // Ambil nama peminjam dari tabel users
+  Future<String?> getNamaPeminjam(String idPeminjam) async {
+    try {
+      final res = await supabase
+          .from('users')
+          .select('nama')
+          .eq('id_user', idPeminjam)
+          .maybeSingle();
+      return res?['nama'] as String?;
+    } catch (e) {
+      debugPrint('Error ambil nama peminjam: $e');
+      return null;
+    }
+  }
+
+  // Ambil daftar alat yang dipinjam + join ke alat & kategori
+  Future<List<AlatDipinjam>> getDaftarAlatDipinjam(int idPinjam) async {
+    try {
+      final res = await supabase
+          .from('detail_peminjaman')
+          .select('''
+            jumlah,
+            alat!inner (
+              nama_alat,
+              id_kategori,
+              kategori!inner (
+                nama_kategori
+              )
+            )
+          ''')
+          .eq('id_pinjam', idPinjam);
+
+      return res.map((e) => AlatDipinjam.fromDetailMap(e)).toList();
+    } catch (e) {
+      debugPrint('Error ambil daftar alat: $e');
+      return [];
+    }
+  }
+
+  // Proses konfirmasi pengembalian (update status + simpan denda jika ada)
+  Future<void> konfirmasiPengembalian({
+    required int idPinjam,
+    required DateTime tanggalKembali,
+    required int nominalDenda,
+  }) async {
+    try {
+      // 1. Update status peminjaman menjadi selesai
+      await supabase.from('peminjaman').update({
+        'status_transaksi': 'selesai',
+        'pengembalian': tanggalKembali.toIso8601String(),
+      }).eq('id_pinjam', idPinjam);
+
+      // 2. Jika ada denda, simpan ke tabel denda
+      if (nominalDenda > 0) {
+        await supabase.from('denda').insert({
+          'id_pinjam': idPinjam,
+          'hari_terlambat': nominalDenda ~/ 5000,
+          'nominal_denda': nominalDenda,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error konfirmasi pengembalian: $e');
+      rethrow;
+    }
+  }
+}
+
+// ────────────────────────────────────────────────
+// 3. CONTROLLER / STATE MANAGEMENT
+// ────────────────────────────────────────────────
+
+class DetailPengembalianController extends GetxController {
+  final PengembalianService service;
+  final Peminjaman peminjaman;
+
+  // State yang reaktif
+  final RxString namaPeminjam = 'Memuat...'.obs;
+  final RxList<AlatDipinjam> alatList = <AlatDipinjam>[].obs;
+  final RxBool isLoading = true.obs;
+
+  // Input tanggal & waktu pengembalian
+  final Rx<DateTime> tanggalKembali = DateTime.now().obs;
+  final Rx<TimeOfDay> waktuKembali = TimeOfDay.now().obs;
+
+  // Hasil perhitungan denda
+  final RxInt hariTerlambat = 0.obs;
+  final RxInt nominalDenda = 0.obs;
+
+  DetailPengembalianController({
+    required this.service,
+    required this.peminjaman,
+  });
 
   @override
-  void initState() {
-    super.initState();
-    _fetchDetailAlat(); // Ambil daftar alat yang dipinjam
-    _hitungDendaOtomatis(); // Hitung denda awal
+  void onInit() {
+    super.onInit();
+    _loadData();
   }
 
-  // Ambil data alat dari tabel detail_peminjaman
-  Future<void> _fetchDetailAlat() async {
+  // Load data awal (nama peminjam + daftar alat)
+  Future<void> _loadData() async {
     try {
-      final res = await c.supabase
-          .from('detail_peminjaman')
-          .select('jumlah, alat(nama_alat, id_kategori)')
-          .eq('id_pinjam', widget.data['id_pinjam']);
-      setState(() {
-        listAlat = res;
-        isLoading = false;
-      });
+      final nama = await service.getNamaPeminjam(peminjaman.idPeminjam);
+      namaPeminjam.value = nama ?? 'Tidak diketahui';
+
+      final alat = await service.getDaftarAlatDipinjam(peminjaman.idPinjam);
+      alatList.assignAll(alat);
     } catch (e) {
-      print("Error: $e");
+      Get.snackbar('Error', 'Gagal memuat data');
+    } finally {
+      isLoading.value = false;
+      _updateDenda();
     }
   }
 
-  // Logika: (selisih hari = tanggal pengembalian - tenggat) dan (denda = selisih x 5000)
-  void _hitungDendaOtomatis() {
-    if (widget.data['tenggat'] == null) return;
+  // Update tanggal → hitung ulang denda
+  void updateTanggalKembali(DateTime date) {
+    tanggalKembali.value = date;
+    _updateDenda();
+  }
 
-    DateTime tenggat = DateTime.parse(widget.data['tenggat']);
-    DateTime tglKembali = DateTime(
-      selectedDate.year, selectedDate.month, selectedDate.day,
-      selectedTime.hour, selectedTime.minute
+  // Update waktu → hitung ulang denda
+  void updateWaktuKembali(TimeOfDay time) {
+    waktuKembali.value = time;
+    _updateDenda();
+  }
+
+  // Logika hitung denda (5.000 per hari terlambat)
+  void _updateDenda() {
+    final tenggat = peminjaman.tenggatDate;
+    if (tenggat == null) return;
+
+    final returnDateTime = DateTime(
+      tanggalKembali.value.year,
+      tanggalKembali.value.month,
+      tanggalKembali.value.day,
+      waktuKembali.value.hour,
+      waktuKembali.value.minute,
     );
 
-    if (tglKembali.isAfter(tenggat)) {
-      // Hitung selisih hari
-      int selisih = tglKembali.difference(tenggat).inDays;
-      
-      // Jika di hari yang sama tapi lewat jam, hitung minimal 1 hari sesuai logika denda
-      if (tglKembali.day != tenggat.day && selisih == 0) selisih = 1;
-      if (selisih < 0) selisih = 0;
-
-      setState(() {
-        hariTerlambat = selisih;
-        denda = hariTerlambat * 5000; // Selisih hari x 5000
-      });
+    if (returnDateTime.isAfter(tenggat)) {
+      final selisih = returnDateTime.difference(tenggat).inDays;
+      hariTerlambat.value = selisih > 0 ? selisih : 0;
+      nominalDenda.value = hariTerlambat.value * 5000;
     } else {
-      setState(() {
-        hariTerlambat = 0;
-        denda = 0;
-      });
+      hariTerlambat.value = 0;
+      nominalDenda.value = 0;
     }
   }
 
-  Future<void> _konfirmasiPengembalian() async {
+  // ────────────────────────────────────────────────
+  // PROSES KONFIRMASI PENGEMBALIAN (dipanggil dari tombol)
+  // ────────────────────────────────────────────────
+  Future<void> konfirmasiPengembalian() async {
     try {
-      // Update status ke 'selesai' agar pindah ke riwayat
-      // Database Trigger fn_kembalikan_stok_otomatis akan otomatis menambah stok alat
-      await c.supabase.from('peminjaman').update({
-        'status_transaksi': 'selesai',
-        'pengembalian': DateTime(
-          selectedDate.year, selectedDate.month, selectedDate.day,
-          selectedTime.hour, selectedTime.minute
-        ).toIso8601String(),
-      }).eq('id_pinjam', widget.data['id_pinjam']);
+      // Gabungkan tanggal + waktu menjadi satu DateTime
+      final returnDateTime = DateTime(
+        tanggalKembali.value.year,
+        tanggalKembali.value.month,
+        tanggalKembali.value.day,
+        waktuKembali.value.hour,
+        waktuKembali.value.minute,
+      );
 
-      setState(() => isSuccess = true);
-      Get.snackbar("Berhasil", "Data dipindahkan ke riwayat", 
-          backgroundColor: Colors.white, colorText: Colors.green);
-      
-      Future.delayed(const Duration(seconds: 2), () => Get.back());
+      // Panggil service untuk update database
+      await service.konfirmasiPengembalian(
+        idPinjam: peminjaman.idPinjam,
+        tanggalKembali: returnDateTime,
+        nominalDenda: nominalDenda.value,
+      );
+
+      // Feedback sukses
+      Get.snackbar(
+        'Sukses',
+        'Pengembalian berhasil dikonfirmasi',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+
+      // Kembali ke halaman sebelumnya
+      Get.back();
+
     } catch (e) {
-      Get.snackbar("Error", e.toString());
+      debugPrint('Error konfirmasi: $e');
+      Get.snackbar(
+        'Gagal',
+        'Terjadi kesalahan saat memproses pengembalian',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
+
+  int get totalAlat => alatList.fold(0, (sum, item) => sum + item.jumlah);
+}
+
+// ────────────────────────────────────────────────
+// VIEW / HALAMAN UI
+// ────────────────────────────────────────────────
+
+class DetailPengembalianAktifPage extends StatelessWidget {
+  final Map<String, dynamic> rawData;
+
+  const DetailPengembalianAktifPage({super.key, required this.rawData});
 
   @override
   Widget build(BuildContext context) {
+    final peminjaman = Peminjaman.fromMap(rawData);
+    final controller = Get.put(
+      DetailPengembalianController(
+        service: PengembalianService(Get.find<AppController>().supabase),
+        peminjaman: peminjaman,
+      ),
+    );
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("Pengembalian", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.bold)),
-        centerTitle: true, elevation: 0, backgroundColor: Colors.white,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFF1F3C58)), onPressed: () => Get.back()),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1F3C58),
+        elevation: 0,
       ),
-      body: isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 25),
-        child: Column(
-          children: [
-            // List Barang sesuai gambar
-            ...listAlat.map((item) => _cardAlat(item)).toList(),
-            const Divider(height: 30),
-            _rowInfo("Nama", widget.data['id_peminjam']?.toString() ?? "-"),
-            _rowInfo("Jumlah alat", "${listAlat.length} unit"),
-            _rowInfo("Pengambilan", _formatTgl(widget.data['pengambilan'])),
-            _rowInfo("Tenggat", _formatTgl(widget.data['tenggat'])),
-            
-            // Kolom Input Pengembalian
-            const SizedBox(height: 15),
-            const Align(alignment: Alignment.centerLeft, child: Text("Pengembalian", style: TextStyle(fontWeight: FontWeight.w500))),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _datePicker()),
-                const SizedBox(width: 10),
-                Expanded(child: _timePicker()),
-              ],
-            ),
-            const Divider(height: 40),
-            _rowInfo("Terlambat", hariTerlambat > 0 ? "$hariTerlambat Hari" : "-"),
-            _rowInfo("Nominal denda", denda > 0 ? "Rp $denda" : "-"),
-            
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity, height: 45,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1F3C58), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))),
-                onPressed: _konfirmasiPengembalian,
-                child: const Text("Konfirmasi", style: TextStyle(color: Colors.white)),
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Daftar alat (tanpa gambar)
+              const Text("Alat yang Dipinjam", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: controller.alatList.map((alat) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.inventory_2, color: Colors.grey, size: 40),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  alat.namaAlat,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                                Text(
+                                  alat.kategori ?? '-',
+                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                ),
+                                Text(
+                                  "${alat.jumlah} unit",
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
-            ),
-            if (isSuccess) _statusBerhasil(),
+
+              const SizedBox(height: 24),
+
+              // Informasi dasar
+              _infoTile("Nama Peminjam", controller.namaPeminjam.value),
+              _infoTile("Tanggal Pengambilan", peminjaman.pengambilanDate != null
+                  ? DateFormat('dd MMMM yyyy – HH:mm').format(peminjaman.pengambilanDate!)
+                  : "-"),
+              _infoTile("Tenggat Pengembalian", peminjaman.tenggatDate != null
+                  ? DateFormat('dd MMMM yyyy – HH:mm').format(peminjaman.tenggatDate!)
+                  : "-"),
+
+              const SizedBox(height: 24),
+
+              // Pilih tanggal & waktu pengembalian
+              const Text("Tanggal Pengembalian", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _datePickerField(context, controller)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _timePickerField(context, controller)),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Panel denda
+              Obx(() => Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: controller.hariTerlambat.value > 0 ? Colors.red.shade50 : Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Terlambat", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                        const SizedBox(height: 8),
+                        Text(
+                          "${controller.hariTerlambat.value} hari",
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(color: Colors.redAccent, thickness: 1),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Total denda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                            Text(
+                              controller.nominalDenda.value.toRupiah(),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )),
+
+              const SizedBox(height: 32),
+
+              // Tombol Konfirmasi Pengembalian
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: controller.konfirmasiPengembalian,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1F3C58),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text(
+                    "Konfirmasi Pengembalian",
+                    style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _infoTile(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _datePickerField(BuildContext context, DetailPengembalianController c) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: c.tanggalKembali.value,
+          firstDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (picked != null) c.updateTanggalKembali(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(DateFormat('dd/MM/yyyy').format(c.tanggalKembali.value)),
+            const Icon(Icons.calendar_today, size: 20, color: Color(0xFF1F3C58)),
           ],
         ),
       ),
     );
   }
 
-  // Widget pendukung tampilan (UI)
-  Widget _cardAlat(dynamic item) {
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(15)),
-      child: Row(children: [
-        const Icon(Icons.image, size: 50, color: Colors.grey),
-        const SizedBox(width: 15),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(item['alat']['nama_alat'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text("Alat", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          Text("${item['jumlah']} unit", style: const TextStyle(fontSize: 11)),
-        ])
-      ]),
+  Widget _timePickerField(BuildContext context, DetailPengembalianController c) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: c.waktuKembali.value,
+        );
+        if (picked != null) c.updateWaktuKembali(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(c.waktuKembali.value.format(context)),
+            const Icon(Icons.access_time, size: 20, color: Color(0xFF1F3C58)),
+          ],
+        ),
+      ),
     );
   }
+}
 
-  Widget _rowInfo(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: const TextStyle(fontSize: 13)),
-      Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-    ]),
-  );
-
-  Widget _datePicker() => InkWell(
-    onTap: () async {
-      DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2025), lastDate: DateTime(2030));
-      if (p != null) { setState(() => selectedDate = p); _hitungDendaOtomatis(); }
-    },
-    child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: const Color(0xFF1F3C58)), borderRadius: BorderRadius.circular(20)),
-      child: Row(children: [const Icon(Icons.calendar_month, size: 18), const SizedBox(width: 10), Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontSize: 12))])),
-  );
-
-  Widget _timePicker() => InkWell(
-    onTap: () async {
-      TimeOfDay? p = await showTimePicker(context: context, initialTime: selectedTime);
-      if (p != null) { setState(() => selectedTime = p); _hitungDendaOtomatis(); }
-    },
-    child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: const Color(0xFF1F3C58)), borderRadius: BorderRadius.circular(20)),
-      child: Row(children: [const Icon(Icons.access_time, size: 18), const SizedBox(width: 10), Text(selectedTime.format(context), style: const TextStyle(fontSize: 12))])),
-  );
-
-  Widget _statusBerhasil() => Container(
-    margin: const EdgeInsets.only(top: 20),
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-    decoration: BoxDecoration(border: Border.all(color: Colors.green), borderRadius: BorderRadius.circular(20)),
-    child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_outline, color: Colors.green, size: 18), SizedBox(width: 10), Text("Berhasil", style: TextStyle(color: Colors.green))]),
-  );
-
-  String _formatTgl(dynamic d) => d != null ? DateFormat('dd/MM/yyyy - HH:mm').format(DateTime.parse(d.toString())) : "-";
+// Extension untuk format Rupiah
+extension IntRupiah on int {
+  String toRupiah() => NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(this);
 }
