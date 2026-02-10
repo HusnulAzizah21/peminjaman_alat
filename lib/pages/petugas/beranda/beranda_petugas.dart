@@ -6,123 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-class BerandaPetugas extends StatelessWidget {
-  const BerandaPetugas({super.key});
+// ────────────────────────────────────────────────
+// 1. CONTROLLER (State & Business Logic)
+// ────────────────────────────────────────────────
+class BerandaPetugasController extends GetxController {
+  final AppController appCtrl = Get.find<AppController>();
+  final Color primaryColor = const Color(0xFF1F3C58);
 
-  @override
-  Widget build(BuildContext context) {
-    const Color primaryColor = Color(0xFF1F3C58);
-    final c = Get.find<AppController>();
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      drawer: const PetugasDrawer(currentPage: 'Beranda'),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text("Beranda", 
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: primaryColor),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- BAGIAN 1: STATISTIK REAL-TIME ---
-            StreamBuilder<List<Map<String, dynamic>>>(
-              stream: c.supabase.from('alat').stream(primaryKey: ['id_alat']),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                final daftarAlat = snapshot.data ?? [];
-                
-                final int totalAlat = daftarAlat.length;
-                final int tersedia = daftarAlat.where((e) => (e['stok_total'] ?? 0) > 0).length;
-                final int dipinjam = daftarAlat.where((e) => (e['stok_total'] ?? 0) == 0).length;
-
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatCard("Total Alat", totalAlat.toString(), Icons.inventory_2, Colors.blue.shade900),
-                    _buildStatCard("Tersedia", tersedia.toString(), Icons.check_circle, Colors.green),
-                    _buildStatCard("Dipinjam", dipinjam.toString(), Icons.handshake, Colors.orange),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 25),
-            const Text("Navigasi Cepat", 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryColor)),
-            const SizedBox(height: 15),
-
-            // Tombol Navigasi
-            _buildNavTile(
-              title: "Persetujuan",
-              subtitle: "Cek pengajuan peminjaman terbaru",
-              icon: Icons.notifications_active,
-              iconColor: primaryColor,
-              onTap: () {
-                    Get.back();
-                    Get.off(() => const PersetujuanPage()); 
-                  },
-            ),
-            _buildNavTile(
-              title: "Pengembalian",
-              subtitle: "Proses alat yang kembali",
-              icon: Icons.assignment_return,
-              iconColor: Colors.green,
-              onTap: () {
-                    Get.back();
-                    Get.off(() => PetugasPengembalianPage()); 
-                  },
-            ),
-
-            const SizedBox(height: 25),
-            const Text("Aktivitas Terbaru", 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryColor)),
-            const SizedBox(height: 15),
-
-            // --- BAGIAN 2: RINGKASAN AKTIVITAS ASLI ---
-            // Mengambil 5 data peminjaman terbaru dengan Join ke tabel Users
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: c.supabase
-                  .from('peminjaman')
-                  .select('*, users!peminjaman_id_peminjam_fkey(nama)')
-                  .order('pengambilan', ascending: false)
-                  .limit(5),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text("Belum ada aktivitas terbaru", style: TextStyle(fontSize: 12, color: Colors.grey)));
-                }
-
-                return Column(
-                  children: snapshot.data!.map((item) {
-                    final String namaUser = item['users']?['nama'] ?? "User Unknown";
-                    final String status = item['status_transaksi'] ?? "menunggu";
-                    final String waktu = _formatWaktu(item['pengambilan']);
-
-                    return _buildAktivitasCard(namaUser, "Status: $status", waktu);
-                  }).toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatWaktu(String? isoString) {
+  // Format waktu ISO ke format yang lebih mudah dibaca
+  String formatWaktu(String? isoString) {
     if (isoString == null) return "-";
     try {
       final date = DateTime.parse(isoString);
@@ -131,9 +23,129 @@ class BerandaPetugas extends StatelessWidget {
       return isoString;
     }
   }
+}
 
-  // --- UI COMPONENTS (SAMA SEPERTI SEBELUMNYA) ---
-  Widget _buildStatCard(String title, String count, IconData icon, Color color) {
+// ────────────────────────────────────────────────
+// 2. PAGE (UI Utama - StatelessWidget)
+// ────────────────────────────────────────────────
+class BerandaPetugas extends StatelessWidget {
+  const BerandaPetugas({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.put(BerandaPetugasController());
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      drawer: const PetugasDrawer(currentPage: 'Beranda'),
+      appBar: _buildAppBar(controller.primaryColor),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Bagian statistik real-time (jumlah alat)
+            _StatistikAlatSection(controller: controller),
+
+            const SizedBox(height: 25),
+            _buildSectionTitle("Navigasi Cepat", controller.primaryColor),
+            const SizedBox(height: 15),
+
+            // Tombol navigasi cepat
+            _NavigasiCepatSection(controller: controller),
+
+            const SizedBox(height: 25),
+            _buildSectionTitle("Aktivitas Terbaru", controller.primaryColor),
+            const SizedBox(height: 15),
+
+            // Ringkasan aktivitas terbaru (5 terakhir)
+            _AktivitasTerbaruSection(controller: controller),
+          ],
+        ),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar(Color primaryColor) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: true,
+      title: Text(
+        "Beranda",
+        style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+      ),
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: Icon(Icons.menu, color: primaryColor),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, Color color) {
+    return Text(
+      title,
+      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────
+// 3. WIDGET KHUSUS: Statistik Alat (Total, Tersedia, Dipinjam)
+// ────────────────────────────────────────────────
+class _StatistikAlatSection extends StatelessWidget {
+  final BerandaPetugasController controller;
+
+  const _StatistikAlatSection({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: controller.appCtrl.supabase.from('alat').stream(primaryKey: ['id_alat']),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final daftarAlat = snapshot.data ?? [];
+
+        final int totalAlat = daftarAlat.length;
+        final int tersedia = daftarAlat.where((e) => (e['stok_total'] ?? 0) > 0).length;
+        final int dipinjam = daftarAlat.where((e) => (e['stok_total'] ?? 0) == 0).length;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _StatCard(title: "Total Alat", count: totalAlat.toString(), icon: Icons.inventory_2, color: Colors.blue.shade900),
+            _StatCard(title: "Tersedia", count: tersedia.toString(), icon: Icons.check_circle, color: Colors.green),
+            _StatCard(title: "Dipinjam", count: dipinjam.toString(), icon: Icons.handshake, color: Colors.orange),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ────────────────────────────────────────────────
+// 4. WIDGET KHUSUS: Kartu Statistik Kecil
+// ────────────────────────────────────────────────
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String count;
+  final IconData icon;
+  final Color color;
+
+  const _StatCard({
+    required this.title,
+    required this.count,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: Get.width * 0.28,
       padding: const EdgeInsets.symmetric(vertical: 15),
@@ -152,8 +164,62 @@ class BerandaPetugas extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildNavTile({required String title, required String subtitle, required IconData icon, required Color iconColor, required VoidCallback onTap}) {
+// ────────────────────────────────────────────────
+// 5. WIDGET KHUSUS: Navigasi Cepat (Persetujuan & Pengembalian)
+// ────────────────────────────────────────────────
+class _NavigasiCepatSection extends StatelessWidget {
+  final BerandaPetugasController controller;
+
+  const _NavigasiCepatSection({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _NavTile(
+          title: "Persetujuan",
+          subtitle: "Cek pengajuan peminjaman terbaru",
+          icon: Icons.notifications_active,
+          iconColor: controller.primaryColor,
+          onTap: () {
+            Get.back();
+            Get.off(() => const PersetujuanPage());
+          },
+        ),
+        _NavTile(
+          title: "Pengembalian",
+          subtitle: "Proses alat yang kembali",
+          icon: Icons.assignment_return,
+          iconColor: Colors.green,
+          onTap: () {
+            Get.back();
+            Get.off(() => PetugasPengembalianPage());
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
       tileColor: Colors.white,
@@ -164,8 +230,58 @@ class BerandaPetugas extends StatelessWidget {
       trailing: const Icon(Icons.chevron_right),
     );
   }
+}
 
-  Widget _buildAktivitasCard(String user, String desc, String time) {
+// ────────────────────────────────────────────────
+// 6. WIDGET KHUSUS: Daftar Aktivitas Terbaru (5 terakhir)
+// ────────────────────────────────────────────────
+class _AktivitasTerbaruSection extends StatelessWidget {
+  final BerandaPetugasController controller;
+
+  const _AktivitasTerbaruSection({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: controller.appCtrl.supabase
+          .from('peminjaman')
+          .select('*, users!peminjaman_id_peminjam_fkey(nama)')
+          .order('pengambilan', ascending: false)
+          .limit(5),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text("Belum ada aktivitas terbaru", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          );
+        }
+
+        return Column(
+          children: snapshot.data!.map((item) {
+            final String namaUser = item['users']?['nama'] ?? "User Unknown";
+            final String status = item['status_transaksi'] ?? "menunggu";
+            final String waktu = controller.formatWaktu(item['pengambilan']);
+
+            return _AktivitasCard(user: namaUser, desc: "Status: $status", time: waktu);
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _AktivitasCard extends StatelessWidget {
+  final String user;
+  final String desc;
+  final String time;
+
+  const _AktivitasCard({
+    required this.user,
+    required this.desc,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
