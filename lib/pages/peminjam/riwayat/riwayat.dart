@@ -18,7 +18,10 @@ class _RiwayatPageState extends State<RiwayatPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = "";
 
-  // 1. Fungsi mengambil Nama dari tabel 'users' berdasarkan UUID id_peminjam
+  // Mengambil ID User yang sedang login secara dinamis
+  String get currentUserId => c.supabase.auth.currentUser?.id ?? "";
+
+  // 1. Fungsi mengambil Nama dari tabel 'users'
   Future<String> _getNamaPeminjam(String userId) async {
     try {
       final response = await c.supabase
@@ -61,7 +64,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
         elevation: 0,
         centerTitle: true,
         title: Text(
-          "Riwayat",
+          "Riwayat Saya",
           style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
         ),
         leading: Builder(
@@ -81,7 +84,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
               controller: _searchController,
               onChanged: (value) => setState(() => _searchTerm = value.toLowerCase()),
               decoration: InputDecoration(
-                hintText: "Pencarian nama . . .",
+                hintText: "Cari riwayat peminjaman . . .",
                 hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -97,13 +100,14 @@ class _RiwayatPageState extends State<RiwayatPage> {
             ),
           ),
 
-          // LIST RIWAYAT DARI DATABASE
+          // LIST RIWAYAT MILIK USER SENDIRI
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: c.supabase
                   .from('peminjaman')
                   .stream(primaryKey: ['id_pinjam'])
                   .eq('status_transaksi', 'selesai')
+                  .eq('id_peminjam', currentUserId) // FILTER: Hanya data user ini
                   .order('pengembalian', ascending: false),
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
@@ -112,7 +116,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
                 final listPeminjaman = snapshot.data!;
 
                 if (listPeminjaman.isEmpty) {
-                  return const Center(child: Text("Belum ada riwayat selesai"));
+                  return const Center(child: Text("Anda belum memiliki riwayat selesai"));
                 }
 
                 return ListView.builder(
@@ -121,9 +125,8 @@ class _RiwayatPageState extends State<RiwayatPage> {
                   itemBuilder: (context, index) {
                     final item = listPeminjaman[index];
                     final idPinjam = item['id_pinjam'];
-                    final idUser = item['id_peminjam'].toString(); // UUID dari users
+                    final idUser = item['id_peminjam'].toString();
 
-                    // Menggunakan FutureBuilder untuk mengambil data dari tabel lain (Join)
                     return FutureBuilder(
                       future: Future.wait([
                         _getNamaPeminjam(idUser),
@@ -138,12 +141,11 @@ class _RiwayatPageState extends State<RiwayatPage> {
                           totalAlat = subSnapshot.data![1];
                         }
 
-                        // Filter Pencarian Client-Side
+                        // Filter Pencarian di sisi aplikasi
                         if (_searchTerm.isNotEmpty && !nama.toLowerCase().contains(_searchTerm)) {
                           return const SizedBox.shrink();
                         }
 
-                        // Format waktu pengembalian
                         String tglKembali = "-";
                         if (item['pengembalian'] != null) {
                           DateTime dt = DateTime.parse(item['pengembalian']).toLocal();
@@ -163,7 +165,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
     );
   }
 
-  // WIDGET KARTU RIWAYAT (SUDAH ANTI-OVERFLOW)
+  // WIDGET KARTU RIWAYAT
   Widget _buildRiwayatCard(String nama, String jumlah, String waktu) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -185,12 +187,9 @@ class _RiwayatPageState extends State<RiwayatPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Garis vertikal biru
               Container(width: 3, height: 35, color: primaryColor),
               const SizedBox(width: 15),
-              
-              // Bagian Teks (Nama & Jumlah)
-              Expanded( // Kunci agar tidak overflow kesamping
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -198,7 +197,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
                       nama,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis, // Jika nama panjang akan jadi titik-titik (...)
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       "Riwayat pinjaman $jumlah",
@@ -207,8 +206,6 @@ class _RiwayatPageState extends State<RiwayatPage> {
                   ],
                 ),
               ),
-
-              // Label Status
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -224,8 +221,6 @@ class _RiwayatPageState extends State<RiwayatPage> {
             ],
           ),
           const SizedBox(height: 15),
-          
-          // Info Tanggal Pengembalian
           Row(
             children: [
               const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
