@@ -88,7 +88,7 @@ class PetugasDrawer extends StatelessWidget {
                   isActive: currentPage == 'pengembalian',
                   onTap: () {
                     Get.back();
-                    Get.off(() => const DetailPengembalianSelesaiPage(data: {},)); 
+                    Get.off(() => PetugasPengembalianPage()); 
                   },
                 ),
                 _buildMenuItem(
