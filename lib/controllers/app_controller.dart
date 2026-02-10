@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class AppController extends GetxController {
+  var dataUser = {}.obs;
   final SupabaseClient supabase = Supabase.instance.client;
 
   var isLoading = false.obs;

@@ -2,497 +2,276 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../controllers/app_controller.dart';
 
 // ────────────────────────────────────────────────
-// 1. MODEL / DATA CLASS
+// 1. MODEL (SANGAT AMAN DARI NULL)
 // ────────────────────────────────────────────────
 
-// Model untuk data peminjaman utama
 class Peminjaman {
   final int idPinjam;
   final String idPeminjam;
-  final String? pengambilan;     // tanggal pengambilan
-  final String? tenggat;         // tanggal tenggat
-  final String? statusTransaksi;
+  final String? pengambilan;
+  final String? tenggat;
 
   Peminjaman.fromMap(Map<String, dynamic> map)
-      : idPinjam = map['id_pinjam'] as int,
-        idPeminjam = map['id_peminjam'] as String,
-        pengambilan = map['pengambilan'] as String?,
-        tenggat = map['tenggat'] as String?,
-        statusTransaksi = map['status_transaksi'] as String?;
+      : idPinjam = int.tryParse(map['id_pinjam']?.toString() ?? '0') ?? 0,
+        idPeminjam = map['id_peminjam']?.toString() ?? '',
+        pengambilan = map['pengambilan']?.toString(),
+        tenggat = map['tenggat']?.toString();
 
-  // Helper untuk mengubah string tanggal menjadi DateTime
-  DateTime? get pengambilanDate => pengambilan != null ? DateTime.parse(pengambilan!) : null;
-  DateTime? get tenggatDate => tenggat != null ? DateTime.parse(tenggat!) : null;
+  DateTime? get tenggatDate => tenggat != null ? DateTime.tryParse(tenggat!) : null;
 }
 
-// Model untuk setiap item alat yang dipinjam
 class AlatDipinjam {
   final int jumlah;
   final String namaAlat;
-  final String? kategori;
+  final String kategori;
 
-  AlatDipinjam({
-    required this.jumlah,
-    required this.namaAlat,
-    this.kategori,
-  });
+  AlatDipinjam({required this.jumlah, required this.namaAlat, required this.kategori});
 
-  // Factory untuk parse data dari response Supabase (dari join)
   factory AlatDipinjam.fromDetailMap(Map<String, dynamic> detail) {
-    final alatMap = detail['alat'] as Map<String, dynamic>? ?? {};
-    final kategoriMap = alatMap['kategori'] as Map<String, dynamic>? ?? {};
+    try {
+      // Ambil data alat & kategori dengan proteksi null bertingkat
+      final alat = detail['alat'] as Map<String, dynamic>? ?? {};
+      final kat = alat['kategori'] as Map<String, dynamic>? ?? {};
 
-    return AlatDipinjam(
-      jumlah: detail['jumlah'] as int? ?? 1,
-      namaAlat: alatMap['nama_alat'] as String? ?? 'Alat tidak diketahui',
-      kategori: kategoriMap['nama_kategori'] as String? ?? '-',
-    );
+      return AlatDipinjam(
+        // Cek dua kemungkinan nama kolom: 'jumlah' atau 'jumlahpinjam'
+        jumlah: int.tryParse(detail['jumlah']?.toString() ?? detail['jumlahpinjam']?.toString() ?? '1') ?? 1,
+        namaAlat: alat['nama_alat']?.toString() ?? 'Alat Tidak Dikenal',
+        kategori: kat['nama_kategori']?.toString() ?? '-',
+      );
+    } catch (e) {
+      return AlatDipinjam(jumlah: 1, namaAlat: 'Error Load Data', kategori: '-');
+    }
   }
 }
 
 // ────────────────────────────────────────────────
-// 2. SERVICE / REPOSITORY (logika komunikasi database)
+// 2. SERVICE
 // ────────────────────────────────────────────────
 
 class PengembalianService {
   final SupabaseClient supabase;
-
   PengembalianService(this.supabase);
 
-  // Ambil nama peminjam dari tabel users
-  Future<String?> getNamaPeminjam(String idPeminjam) async {
+  Future<String> getNamaPeminjam(String id) async {
     try {
-      final res = await supabase
-          .from('users')
-          .select('nama')
-          .eq('id_user', idPeminjam)
-          .maybeSingle();
-      return res?['nama'] as String?;
-    } catch (e) {
-      debugPrint('Error ambil nama peminjam: $e');
-      return null;
-    }
+      final res = await supabase.from('users').select('nama').eq('id_user', id).maybeSingle();
+      return res?['nama']?.toString() ?? 'Tanpa Nama';
+    } catch (e) { return 'Error User'; }
   }
 
-  // Ambil daftar alat yang dipinjam + join ke alat & kategori
-  Future<List<AlatDipinjam>> getDaftarAlatDipinjam(int idPinjam) async {
+  Future<List<AlatDipinjam>> getDaftarAlat(int idPinjam) async {
     try {
-      final res = await supabase
-          .from('detail_peminjaman')
-          .select('''
-            jumlah,
-            alat!inner (
-              nama_alat,
-              id_kategori,
-              kategori!inner (
-                nama_kategori
-              )
-            )
-          ''')
-          .eq('id_pinjam', idPinjam);
-
-      return res.map((e) => AlatDipinjam.fromDetailMap(e)).toList();
+      final res = await supabase.from('detail_peminjaman').select('''
+        jumlah,
+        alat (
+          nama_alat,
+          kategori (nama_kategori)
+        )
+      ''').eq('id_pinjam', idPinjam);
+      
+      if (res == null) return [];
+      return (res as List).map((e) => AlatDipinjam.fromDetailMap(e)).toList();
     } catch (e) {
-      debugPrint('Error ambil daftar alat: $e');
+      debugPrint("Gagal Select: $e");
       return [];
-    }
-  }
-
-  // Proses konfirmasi pengembalian (update status + simpan denda jika ada)
-  Future<void> konfirmasiPengembalian({
-    required int idPinjam,
-    required DateTime tanggalKembali,
-    required int nominalDenda,
-  }) async {
-    try {
-      // 1. Update status peminjaman menjadi selesai
-      await supabase.from('peminjaman').update({
-        'status_transaksi': 'selesai',
-        'pengembalian': tanggalKembali.toIso8601String(),
-      }).eq('id_pinjam', idPinjam);
-
-      // 2. Jika ada denda, simpan ke tabel denda
-      if (nominalDenda > 0) {
-        await supabase.from('denda').insert({
-          'id_pinjam': idPinjam,
-          'hari_terlambat': nominalDenda ~/ 5000,
-          'nominal_denda': nominalDenda,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error konfirmasi pengembalian: $e');
-      rethrow;
     }
   }
 }
 
 // ────────────────────────────────────────────────
-// 3. CONTROLLER / STATE MANAGEMENT
+// 3. CONTROLLER
 // ────────────────────────────────────────────────
 
 class DetailPengembalianController extends GetxController {
   final PengembalianService service;
-  final Peminjaman peminjaman;
+  final Peminjaman pinjam;
 
-  // State yang reaktif
-  final RxString namaPeminjam = 'Memuat...'.obs;
+  final RxString namaPeminjam = '...'.obs;
   final RxList<AlatDipinjam> alatList = <AlatDipinjam>[].obs;
   final RxBool isLoading = true.obs;
-
-  // Input tanggal & waktu pengembalian
-  final Rx<DateTime> tanggalKembali = DateTime.now().obs;
-  final Rx<TimeOfDay> waktuKembali = TimeOfDay.now().obs;
-
-  // Hasil perhitungan denda
   final RxInt hariTerlambat = 0.obs;
   final RxInt nominalDenda = 0.obs;
 
-  DetailPengembalianController({
-    required this.service,
-    required this.peminjaman,
-  });
+  // Input
+  final Rx<DateTime> tglKembali = DateTime.now().obs;
+  final Rx<TimeOfDay> wktKembali = TimeOfDay.now().obs;
+
+  DetailPengembalianController(this.service, this.pinjam);
 
   @override
   void onInit() {
     super.onInit();
-    _loadData();
+    _fetchData();
   }
 
-  // Load data awal (nama peminjam + daftar alat)
-  Future<void> _loadData() async {
+  Future<void> _fetchData() async {
+    isLoading.value = true;
     try {
-      final nama = await service.getNamaPeminjam(peminjaman.idPeminjam);
-      namaPeminjam.value = nama ?? 'Tidak diketahui';
-
-      final alat = await service.getDaftarAlatDipinjam(peminjaman.idPinjam);
-      alatList.assignAll(alat);
-    } catch (e) {
-      Get.snackbar('Error', 'Gagal memuat data');
+      namaPeminjam.value = await service.getNamaPeminjam(pinjam.idPeminjam);
+      final list = await service.getDaftarAlat(pinjam.idPinjam);
+      alatList.assignAll(list);
     } finally {
       isLoading.value = false;
-      _updateDenda();
+      hitungDenda();
     }
   }
 
-  // Update tanggal → hitung ulang denda
-  void updateTanggalKembali(DateTime date) {
-    tanggalKembali.value = date;
-    _updateDenda();
-  }
+  void hitungDenda() {
+    final tg = pinjam.tenggatDate;
+    if (tg == null) return;
 
-  // Update waktu → hitung ulang denda
-  void updateWaktuKembali(TimeOfDay time) {
-    waktuKembali.value = time;
-    _updateDenda();
-  }
+    final skrg = DateTime(tglKembali.value.year, tglKembali.value.month, tglKembali.value.day, 
+                          wktKembali.value.hour, wktKembali.value.minute);
 
-  // Logika hitung denda (5.000 per hari terlambat)
-  void _updateDenda() {
-    final tenggat = peminjaman.tenggatDate;
-    if (tenggat == null) return;
-
-    final returnDateTime = DateTime(
-      tanggalKembali.value.year,
-      tanggalKembali.value.month,
-      tanggalKembali.value.day,
-      waktuKembali.value.hour,
-      waktuKembali.value.minute,
-    );
-
-    if (returnDateTime.isAfter(tenggat)) {
-      final selisih = returnDateTime.difference(tenggat).inDays;
-      hariTerlambat.value = selisih > 0 ? selisih : 0;
-      nominalDenda.value = hariTerlambat.value * 5000;
+    if (skrg.isAfter(tg)) {
+      final diff = skrg.difference(tg);
+      int hari = diff.inDays;
+      if (diff.inSeconds % 86400 > 0) hari += 1; // Telat dikit = tambah 1 hari
+      
+      hariTerlambat.value = hari;
+      nominalDenda.value = hari * 5000;
     } else {
       hariTerlambat.value = 0;
       nominalDenda.value = 0;
     }
   }
 
-  // ────────────────────────────────────────────────
-  // PROSES KONFIRMASI PENGEMBALIAN (dipanggil dari tombol)
-  // ────────────────────────────────────────────────
-  Future<void> konfirmasiPengembalian() async {
+  Future<void> simpan() async {
     try {
-      // Gabungkan tanggal + waktu menjadi satu DateTime
-      final returnDateTime = DateTime(
-        tanggalKembali.value.year,
-        tanggalKembali.value.month,
-        tanggalKembali.value.day,
-        waktuKembali.value.hour,
-        waktuKembali.value.minute,
-      );
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      
+      final tglFinal = DateTime(tglKembali.value.year, tglKembali.value.month, tglKembali.value.day, 
+                                wktKembali.value.hour, wktKembali.value.minute);
 
-      // Panggil service untuk update database
-      await service.konfirmasiPengembalian(
-        idPinjam: peminjaman.idPinjam,
-        tanggalKembali: returnDateTime,
-        nominalDenda: nominalDenda.value,
-      );
+      await service.supabase.from('peminjaman').update({
+        'status_transaksi': 'selesai',
+        'pengembalian': tglFinal.toIso8601String(),
+      }).eq('id_pinjam', pinjam.idPinjam);
 
-      // Feedback sukses
-      Get.snackbar(
-        'Sukses',
-        'Pengembalian berhasil dikonfirmasi',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-      );
+      if (nominalDenda.value > 0) {
+        await service.supabase.from('denda').insert({
+          'id_pinjam': pinjam.idPinjam,
+          'hari_terlambat': hariTerlambat.value,
+          'nominal_denda': nominalDenda.value,
+        });
+      }
 
-      // Kembali ke halaman sebelumnya
-      Get.back();
-
+      Get.back(); // Tutup Loading
+      Get.back(); // Kembali
+      Get.snackbar("Berhasil", "Data pengembalian disimpan", backgroundColor: Colors.green, colorText: Colors.white);
     } catch (e) {
-      debugPrint('Error konfirmasi: $e');
-      Get.snackbar(
-        'Gagal',
-        'Terjadi kesalahan saat memproses pengembalian',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.back();
+      Get.snackbar("Gagal", "Error: $e");
     }
   }
-
-  int get totalAlat => alatList.fold(0, (sum, item) => sum + item.jumlah);
 }
 
 // ────────────────────────────────────────────────
-// VIEW / HALAMAN UI
+// 4. VIEW (TAMPILAN)
 // ────────────────────────────────────────────────
 
 class DetailPengembalianAktifPage extends StatelessWidget {
   final Map<String, dynamic> rawData;
-
   const DetailPengembalianAktifPage({super.key, required this.rawData});
 
   @override
   Widget build(BuildContext context) {
-    final peminjaman = Peminjaman.fromMap(rawData);
-    final controller = Get.put(
-      DetailPengembalianController(
-        service: PengembalianService(Get.find<AppController>().supabase),
-        peminjaman: peminjaman,
-      ),
-    );
+    final p = Peminjaman.fromMap(rawData);
+    final c = Get.put(DetailPengembalianController(
+      PengembalianService(Get.find<AppController>().supabase), p
+    ), tag: p.idPinjam.toString());
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Pengembalian", style: TextStyle(color: Color(0xFF1F3C58), fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F3C58),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text("Detail Pengembalian")),
       body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (c.isLoading.value) return const Center(child: CircularProgressIndicator());
 
-        return SingleChildScrollView(
+        return ListView(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Daftar alat (tanpa gambar)
-              const Text("Alat yang Dipinjam", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: controller.alatList.map((alat) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.inventory_2, color: Colors.grey, size: 40),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  alat.namaAlat,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
-                                Text(
-                                  alat.kategori ?? '-',
-                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                                ),
-                                Text(
-                                  "${alat.jumlah} unit",
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
+          children: [
+            const Text("Alat Dipinjam", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            
+            // Box Daftar Alat
+            Container(
+              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+              child: Column(
+                children: c.alatList.map((item) => ListTile(
+                  leading: const Icon(Icons.build_circle),
+                  title: Text(item.namaAlat),
+                  subtitle: Text(item.kategori),
+                  trailing: Text("${item.jumlah} Unit"),
+                )).toList(),
               ),
+            ),
 
-              const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            _infoRow("Peminjam", c.namaPeminjam.value),
+            _infoRow("Tenggat", p.tenggatDate != null ? DateFormat('dd/MM/yyyy HH:mm').format(p.tenggatDate!) : '-'),
+            
+            const Divider(height: 40),
+            
+            const Text("Waktu Kembali Sebenarnya:", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: ElevatedButton(
+                  onPressed: () async {
+                    final d = await showDatePicker(context: context, initialDate: c.tglKembali.value, firstDate: DateTime(2020), lastDate: DateTime(2100));
+                    if (d != null) { c.tglKembali.value = d; c.hitungDenda(); }
+                  },
+                  child: Text(DateFormat('dd/MM/yyyy').format(c.tglKembali.value)),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: ElevatedButton(
+                  onPressed: () async {
+                    final t = await showTimePicker(context: context, initialTime: c.wktKembali.value);
+                    if (t != null) { c.wktKembali.value = t; c.hitungDenda(); }
+                  },
+                  child: Text(c.wktKembali.value.format(context)),
+                )),
+              ],
+            ),
 
-              // Informasi dasar
-              _infoTile("Nama Peminjam", controller.namaPeminjam.value),
-              _infoTile("Tanggal Pengambilan", peminjaman.pengambilanDate != null
-                  ? DateFormat('dd MMMM yyyy – HH:mm').format(peminjaman.pengambilanDate!)
-                  : "-"),
-              _infoTile("Tenggat Pengembalian", peminjaman.tenggatDate != null
-                  ? DateFormat('dd MMMM yyyy – HH:mm').format(peminjaman.tenggatDate!)
-                  : "-"),
-
-              const SizedBox(height: 24),
-
-              // Pilih tanggal & waktu pengembalian
-              const Text("Tanggal Pengembalian", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              const SizedBox(height: 8),
-              Row(
+            const SizedBox(height: 30),
+            
+            // Panel Denda
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: c.hariTerlambat.value > 0 ? Colors.red.shade100 : Colors.green.shade100,
+                borderRadius: BorderRadius.circular(10)
+              ),
+              child: Column(
                 children: [
-                  Expanded(child: _datePickerField(context, controller)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _timePickerField(context, controller)),
+                  _infoRow("Keterlambatan", "${c.hariTerlambat.value} Hari"),
+                  _infoRow("Total Denda", (c.nominalDenda.value).toIDR()),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 24),
-
-              // Panel denda
-              Obx(() => Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: controller.hariTerlambat.value > 0 ? Colors.red.shade50 : Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Terlambat", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                        const SizedBox(height: 8),
-                        Text(
-                          "${controller.hariTerlambat.value} hari",
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
-                        ),
-                        const SizedBox(height: 16),
-                        const Divider(color: Colors.redAccent, thickness: 1),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("Total denda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                            Text(
-                              controller.nominalDenda.value.toRupiah(),
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  )),
-
-              const SizedBox(height: 32),
-
-              // Tombol Konfirmasi Pengembalian
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: controller.konfirmasiPengembalian,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1F3C58),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text(
-                    "Konfirmasi Pengembalian",
-                    style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: () => c.simpan(),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1F3C58), padding: const EdgeInsets.all(15)),
+              child: const Text("KONFIRMASI SEKARANG", style: TextStyle(color: Colors.white)),
+            )
+          ],
         );
       }),
     );
   }
 
-  Widget _infoTile(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-
-  Widget _datePickerField(BuildContext context, DetailPengembalianController c) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: c.tanggalKembali.value,
-          firstDate: DateTime.now(),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-        );
-        if (picked != null) c.updateTanggalKembali(picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(DateFormat('dd/MM/yyyy').format(c.tanggalKembali.value)),
-            const Icon(Icons.calendar_today, size: 20, color: Color(0xFF1F3C58)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _timePickerField(BuildContext context, DetailPengembalianController c) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showTimePicker(
-          context: context,
-          initialTime: c.waktuKembali.value,
-        );
-        if (picked != null) c.updateWaktuKembali(picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(c.waktuKembali.value.format(context)),
-            const Icon(Icons.access_time, size: 20, color: Color(0xFF1F3C58)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _infoRow(String l, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l), Text(v, style: const TextStyle(fontWeight: FontWeight.bold))]),
+  );
 }
 
-// Extension untuk format Rupiah
-extension IntRupiah on int {
-  String toRupiah() => NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(this);
+extension on int {
+  String toIDR() => NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(this);
 }

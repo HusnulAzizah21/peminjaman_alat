@@ -45,17 +45,16 @@ class BerandaPetugas extends StatelessWidget {
                 
                 final daftarAlat = snapshot.data ?? [];
                 
-                // Perbaikan Error '>' dengan pengecekan null (null safety)
                 final int totalAlat = daftarAlat.length;
-                final int tersedia = daftarAlat.where((e) => (e['stok'] ?? 0) > 0).length;
-                final int dipinjam = daftarAlat.where((e) => (e['stok'] ?? 0) == 0).length;
+                final int tersedia = daftarAlat.where((e) => (e['stok_total'] ?? 0) > 0).length;
+                final int dipinjam = daftarAlat.where((e) => (e['stok_total'] ?? 0) == 0).length;
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _buildStatCard("Total Alat", totalAlat.toString(), Icons.inventory_2, Colors.blue.shade900),
                     _buildStatCard("Tersedia", tersedia.toString(), Icons.check_circle, Colors.green),
-                    _buildStatCard("Habis", dipinjam.toString(), Icons.handshake, Colors.orange),
+                    _buildStatCard("Dipinjam", dipinjam.toString(), Icons.handshake, Colors.orange),
                   ],
                 );
               },
@@ -84,7 +83,7 @@ class BerandaPetugas extends StatelessWidget {
               iconColor: Colors.green,
               onTap: () {
                     Get.back();
-                    Get.off(() => const PetugasPengembalianPage()); 
+                    Get.off(() => const DetailPengembalianSelesaiPage(data: {},)); 
                   },
             ),
 
