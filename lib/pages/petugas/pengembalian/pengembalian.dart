@@ -249,4 +249,4 @@ class PetugasPengembalianPage extends StatelessWidget {
       },
     );
   }
-} //login google, realtime = buka 2 google chrome, batasan peminjaman, tambah kondisi barang. barang harus dikembalikan sebelum pinjam lagi.
+} 

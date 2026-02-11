@@ -123,11 +123,7 @@ class DetailPengembalianController extends GetxController {
 
   Future<void> simpanData() async {
     try {
-      // 1. Tampilkan Loading Overlay
-      Get.dialog(
-        const Center(child: CircularProgressIndicator()), 
-        barrierDismissible: false
-      );
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
       
       final tglSimpan = DateTime(
         tglKembali.value.year, 
@@ -137,46 +133,39 @@ class DetailPengembalianController extends GetxController {
         waktuKembali.value.minute
       );
 
-      // 2. Update database
-      // PENTING: Gunakan StatusPinjam.selesai agar konsisten dengan filter di halaman Riwayat
+      // 1. Update status di tabel Peminjaman
       await supabase.from('peminjaman').update({
         'pengembalian': tglSimpan.toIso8601String(),
-        'status_transaksi': StatusPinjam.selesai, // Menggunakan konstanta 'selesai'
-        'denda': nominalDenda.value, // Tambahkan kolom denda jika ada di tabel Anda
+        'status_transaksi': 'selesai', // Pastikan teks ini sesuai dengan Enum di database
       }).eq('id_pinjam', pinjam.idPinjam);
 
-      // 3. Trigger Refresh untuk halaman List (PBO - State Management)
-      // Jika Anda punya controller untuk halaman riwayat/list pengembalian, 
-      // panggil fungsi fetch datanya di sini agar list otomatis terupdate.
-      // Contoh: if (Get.isRegistered<HistoryController>()) Get.find<HistoryController>().refreshData();
+      // 2. Simpan ke tabel Denda (Hanya kolom yang diizinkan)
+      if (hariTerlambat.value > 0) {
+        await supabase.from('denda').upsert({
+          'pengembalian': pinjam.idPinjam, 
+          'hari_terlambat': hariTerlambat.value,
+          'tarif_per_hari': 5000,
+          // nominal_denda TIDAK BOLEH dikirim karena 'generated column'
+        }, onConflict: 'pengembalian'); 
+      }
 
-      Get.back(); // Tutup dialog loading
-      
-      // 4. Kembali ke halaman sebelumnya dengan hasil 'true'
-      // Ini memberitahu halaman sebelumnya bahwa transaksi sukses dilakukan
+      if (Get.isDialogOpen!) Get.back(); 
       Get.back(result: true); 
 
-      Get.snackbar(
-        "Berhasil", 
-        "Data pengembalian telah disimpan",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(15),
-      );
+      Get.snackbar("Berhasil", "Data pengembalian berhasil disimpan",
+        backgroundColor: Colors.green, colorText: Colors.white);
+        
     } catch (e) {
-      Get.back(); // Tutup dialog loading jika error
+      if (Get.isDialogOpen!) Get.back(); 
       debugPrint("Error Simpan: $e");
-      Get.snackbar(
-        "Gagal", 
-        "Terjadi kesalahan saat menyimpan data",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      
+      // Tips: Jika masih error enum, pastikan 'selesai' ada di database. 
+      // Jika error 42P10 tetap muncul, pastikan langkah SQL nomor 1 sudah sukses.
+      Get.snackbar("Gagal", "Terjadi kesalahan: $e", 
+        backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
-}
+  }
 
 // =========================================================
 // 3. VIEW

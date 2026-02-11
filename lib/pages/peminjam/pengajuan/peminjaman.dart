@@ -15,28 +15,32 @@ class _StatusPeminjamanPageState extends State<StatusPeminjamanPage> {
   bool isTabPengajuan = true;
   final c = Get.find<AppController>();
 
-  // --- STREAM PENGAJUAN (REAL-TIME) ---
+  // --- STREAM PENGAJUAN (Hanya yang sedang diproses / belum beres) ---
   Stream<List<Map<String, dynamic>>> _getStreamPengajuan() {
     final userId = c.userProfile['id_user'];
     return c.supabase
         .from('peminjaman')
         .stream(primaryKey: ['id_pinjam'])
         .order('id_pinjam', ascending: false)
-        .map((data) => data.where((item) => item['id_peminjam'] == userId).toList());
+        .map((data) => data.where((item) => 
+            item['id_peminjam'] == userId && 
+            // Filter: Jangan tampilkan yang sudah selesai
+            item['status_transaksi'] != 'selesai'
+        ).toList());
   }
 
-  // --- STREAM PINJAMAN SAYA (Hanya yang Disetujui) ---
+  // --- STREAM PINJAMAN SAYA (Barang yang sedang di tangan user) ---
   Stream<List<Map<String, dynamic>>> _getStreamPinjamanAktif() {
     final userId = c.userProfile['id_user'];
     return c.supabase
         .from('peminjaman')
         .stream(primaryKey: ['id_pinjam'])
         .order('id_pinjam', ascending: false)
-        .map((data) => data
-            .where((item) => 
-                item['id_peminjam'] == userId && 
-                item['status_transaksi'] == 'disetujui')
-            .toList());
+        .map((data) => data.where((item) => 
+            item['id_peminjam'] == userId && 
+            // Tampilkan yang sudah disetujui ATAU sedang dipinjam
+            (item['status_transaksi'] == 'disetujui' || item['status_transaksi'] == 'dipinjam')
+        ).toList());
   }
 
   @override

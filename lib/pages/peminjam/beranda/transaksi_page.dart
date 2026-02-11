@@ -75,7 +75,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
   // FUNGSI AJUKAN (DENGAN PERBAIKAN ERROR)
   // ==========================================
   Future<void> _ajukanPeminjaman() async {
-    // 1. Validasi Input
+    // 1. Validasi Input Dasar
     if (selectedTglAmbil == null || selectedJamAmbil == null ||
         selectedTglTenggat == null || selectedJamTenggat == null) {
       Get.snackbar("Gagal", "Silakan lengkapi tanggal dan jam!",
@@ -83,7 +83,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
       return;
     }
 
-    // 2. Tampilkan Loading (Supaya user tidak tekan berkali-kali)
+    // 2. Tampilkan Loading
     Get.dialog(
       const Center(child: CircularProgressIndicator()),
       barrierDismissible: false,
@@ -96,6 +96,48 @@ class _TransaksiPageState extends State<TransaksiPage> {
       }
 
       final String idPeminjam = userData['id_user'];
+
+      // ===========================================================
+      // TAMBAHAN: VALIDASI 1 - CEK PINJAMAN AKTIF
+      // ===========================================================
+      final pinjamanAktif = await c.supabase
+          .from('peminjaman')
+          .select()
+          .eq('id_peminjam', idPeminjam)
+          // KODE YANG BENAR
+          .inFilter('status_transaksi', ['menunggu', 'disetujui', 'pinjam']);
+
+      if ((pinjamanAktif as List).isNotEmpty) {
+        Get.back(); // Tutup loading
+        Get.snackbar("Gagal Meminjam", "Anda masih memiliki peminjaman yang belum dikembalikan.",
+            backgroundColor: Colors.red, colorText: Colors.white);
+        return;
+      }
+
+      // ===========================================================
+      // TAMBAHAN: VALIDASI 2 - CEK MAKSIMAL 1 PER ALAT
+      // ===========================================================
+      // ===========================================================
+      // VALIDASI 2 - ATURAN STOK (Jika stok < 3, maks pinjam 1)
+      // ===========================================================
+      for (var item in widget.cartItems) {
+        // Ambil data stok, pastikan default ke 0 jika null
+        int stokTersedia = item['stok'] ?? 0;
+        int jumlahPinjam = item['jumlah'] ?? 1;
+
+        if (stokTersedia < 3 && jumlahPinjam > 1) {
+          if (Get.isDialogOpen!) Get.back(); // Tutup loading
+          Get.snackbar(
+            "Batas Peminjaman", 
+            "Stok ${item['nama_alat']} terbatas ($stokTersedia). Hanya boleh meminjam 1 unit.",
+            backgroundColor: Colors.red, 
+            colorText: Colors.white
+          );
+          return;
+        }
+      }
+      // ===========================================================
+      // ===========================================================
 
       DateTime combine(DateTime date, TimeOfDay time) =>
           DateTime(date.year, date.month, date.day, time.hour, time.minute);
@@ -135,14 +177,12 @@ class _TransaksiPageState extends State<TransaksiPage> {
       Get.snackbar("Berhasil", "Pengajuan dikirim!",
           backgroundColor: Colors.green, colorText: Colors.white);
 
-      // Gunakan delay sebentar lalu kembali ke halaman sebelumnya
-      // Ini lebih aman daripada memanggil rute /status_tunggu yang belum terdaftar
       Future.delayed(const Duration(seconds: 1), () {
         Get.back(); // Kembali ke halaman katalog/keranjang
       });
 
     } catch (e) {
-      Get.back(); // Tutup loading jika error
+      if (Get.isDialogOpen!) Get.back(); // Tutup loading jika error
       print("DETAIL ERROR: $e");
       Get.snackbar("Error", "Gagal mengirim: $e", 
           backgroundColor: Colors.red, colorText: Colors.white);
