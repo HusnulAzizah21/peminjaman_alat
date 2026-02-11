@@ -1,3 +1,4 @@
+import 'package:aplikasi_peminjamanbarang/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,7 +36,7 @@ class MyApp extends StatelessWidget {
       ),
       
       debugShowCheckedModeBanner: false,
-      home: const SplashPage(),
+      home: const LoginPage(),
     );
   }
 }

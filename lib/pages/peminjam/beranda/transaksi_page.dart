@@ -185,7 +185,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
       if (Get.isDialogOpen!) Get.back(); // Tutup loading jika error
       print("DETAIL ERROR: $e");
       Get.snackbar("Error", "Gagal mengirim: $e", 
-          backgroundColor: Colors.red, colorText: Colors.white);
+          backgroundColor: Color(0xFF1F3C58), colorText: Colors.white);
     }
   }
 

@@ -9,55 +9,78 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AppController extends GetxController {
-  var dataUser = {}.obs;
   final SupabaseClient supabase = Supabase.instance.client;
 
   var isLoading = false.obs;
   var userProfile = {}.obs;
   var emailError = RxnString();
   var passwordError = RxnString();
-  var isPasswordVisible = false.obs; // Logika visibility
+  var isPasswordVisible = false.obs;
 
+  // --- 1. GOOGLE SIGN IN ---
   Future<void> signInWithGoogle() async {
   try {
-    // 1. Inisialisasi Google Sign In
-    // Untuk Android, masukkan serverClientId (diambil dari Web Client ID di Google Console)
-    final googleSignIn = GoogleSignIn(
-  clientId: '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
-  // Kita beri syarat: kalau Web (kIsWeb), serverClientId-nya dikosongkan (null)
-  serverClientId: kIsWeb ? null : '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
-);
-    
-    final googleUser = await googleSignIn.signIn();
-    final googleAuth = await googleUser!.authentication;
-    final accessToken = googleAuth.accessToken;
-    final idToken = googleAuth.idToken;
+    isLoading.value = true;
 
-    if (accessToken == null || idToken == null) {
-      throw 'No Access Token or ID Token found.';
+    // 1. Inisialisasi yang BENAR untuk Web vs Mobile
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      // Web HANYA butuh clientId. Android butuh keduanya.
+      clientId: '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
+      serverClientId: kIsWeb ? null : '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
+    );
+
+    // 2. Bersihkan session agar tidak langsung login otomatis
+    await googleSignIn.signOut();
+    await supabase.auth.signOut();
+
+    // 3. Mulai Sign In
+    final googleUser = await googleSignIn.signIn();
+    
+    if (googleUser == null) {
+      isLoading.value = false;
+      return; 
     }
 
-    // 2. Kirim kredensial ke Supabase
-    await Supabase.instance.client.auth.signInWithIdToken(
+    final googleAuth = await googleUser.authentication;
+    
+    // LOGIKA KRUSIAL: Web terkadang hanya mengirim accessToken atau idToken
+    // Supabase signInWithIdToken butuh idToken yang valid.
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw 'No ID Token found. Pastikan OAuth Client ID di Google Console bertipe "Web Application".';
+    }
+
+    // 4. Kirim ke Supabase
+    final AuthResponse res = await supabase.auth.signInWithIdToken(
       provider: OAuthProvider.google,
       idToken: idToken,
       accessToken: accessToken,
     );
-    
-    // 3. Navigasi ke Beranda setelah berhasil
-    GetPage(name: '/dashboard', page: () => const PeminjamPage());
 
+    if (res.user != null) {
+      userProfile.value = {
+        'id_user': res.user!.id,
+        'nama': res.user!.userMetadata?['full_name'] ?? googleUser.displayName,
+        'email': res.user!.email,
+        'role': 'Peminjam',
+      };
+      Get.offAll(() => const PeminjamPage());
+    }
   } catch (error) {
     print('Error Google Sign In: $error');
+    Get.snackbar("Login Gagal", "Terjadi kesalahan: $error", backgroundColor: Colors.red, colorText: Colors.white);
+  } finally {
+    isLoading.value = false;
   }
-}
+} // <-- Tadi kelebihan kurung kurawal di sini
 
+  // --- 2. LOGIN MANUAL ---
   Future<void> login(String email, String password) async {
-    // Reset error setiap kali tombol ditekan
     emailError.value = null;
     passwordError.value = null;
 
-    // Validasi Kosong
     if (email.isEmpty) emailError.value = "Email tidak boleh kosong";
     if (password.isEmpty) passwordError.value = "Kata sandi tidak boleh kosong";
     if (email.isEmpty || password.isEmpty) return;
@@ -65,7 +88,6 @@ class AppController extends GetxController {
     try {
       isLoading.value = true;
       
-      // Step 1: Cari user berdasarkan email
       final data = await supabase
           .from('users')
           .select()
@@ -75,18 +97,15 @@ class AppController extends GetxController {
       if (data == null) {
         emailError.value = "Email tidak terdaftar";
       } else {
-        // Step 2: Cek password
         if (data['password'] != password) {
           passwordError.value = "Kata sandi salah";
         } else {
-          // LOGIN BERHASIL
           userProfile.value = data;
           String role = data['role']?.toString() ?? 'Peminjam';
           
           Get.snackbar("Sukses", "Selamat datang, ${data['nama']}", 
               backgroundColor: Colors.green, colorText: Colors.white);
 
-          // NAVIGASI BERDASARKAN ROLE
           if (role == 'Admin') {
             Get.offAll(() => const AdminBerandaPage()); 
           } else if (role == 'Petugas') {
@@ -104,8 +123,11 @@ class AppController extends GetxController {
     }
   }
 
-  void logout() {
-    userProfile.value = {};
-    Get.offAll(() => const LoginPage());
-  }
+  // --- 3. LOGOUT ---
+  void logout() async {
+  await supabase.auth.signOut(); // Menghapus sesi di Supabase
+  await GoogleSignIn().signOut(); // Menghapus sesi di Google
+  userProfile.value = {}; // Mengosongkan data user di GetX
+  Get.offAll(() => const LoginPage()); // Tendang balik ke Login
+}
 }

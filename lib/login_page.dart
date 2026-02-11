@@ -1,7 +1,6 @@
 import 'package:aplikasi_peminjamanbarang/controllers/app_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'controllers/app_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -93,20 +92,19 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text("Masuk", style: TextStyle(color: Colors.white, fontSize: 16)),
                   )),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   Center(
                     child: ElevatedButton.icon(
                       onPressed: () => authC.signInWithGoogle(),
-                      // Ganti Icon dengan Image
                       icon: Image.network(
                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
-                        height: 20, // Sesuaikan ukuran logo
+                        height: 20, 
                       ),
                       label: const Text("Masuk dengan Google"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue, // Warna font jadi biru
+                        foregroundColor: Colors.blue, 
                         side: const BorderSide(color: Colors.grey),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
