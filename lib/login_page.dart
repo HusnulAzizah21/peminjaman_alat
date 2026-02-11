@@ -93,15 +93,24 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text("Masuk", style: TextStyle(color: Colors.white, fontSize: 16)),
                   )),
 
-                  ElevatedButton.icon(
-                    onPressed: () => authC.signInWithGoogle(), // Panggil fungsi di controller
-                    icon: const Icon(Icons.login, color: Colors.red),
-                    label: const Text("Masuk dengan Google"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.grey),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  SizedBox(height: 20),
+
+                  Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () => authC.signInWithGoogle(),
+                      // Ganti Icon dengan Image
+                      icon: Image.network(
+                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
+                        height: 20, // Sesuaikan ukuran logo
+                      ),
+                      label: const Text("Masuk dengan Google"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blue, // Warna font jadi biru
+                        side: const BorderSide(color: Colors.grey),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
                     ),
                   )
                 ],

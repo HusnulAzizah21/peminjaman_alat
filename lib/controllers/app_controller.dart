@@ -45,7 +45,7 @@ class AppController extends GetxController {
     );
     
     // 3. Navigasi ke Beranda setelah berhasil
-    Get.offAllNamed('/dashboard');
+    GetPage(name: '/dashboard', page: () => const PeminjamPage());
 
   } catch (error) {
     print('Error Google Sign In: $error');
