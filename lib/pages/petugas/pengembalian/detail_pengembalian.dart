@@ -20,6 +20,12 @@ class Peminjaman {
   DateTime? get tenggatDate => tenggat != null ? DateTime.tryParse(tenggat!) : null;
 }
 
+class StatusPinjam {
+  static const String dipinjam = 'dipinjam';
+  static const String selesai = 'selesai';
+  static const String terlambat = 'terlambat';
+  }
+
 class AlatDipinjam {
   final int jumlah;
   final String namaAlat;
@@ -117,7 +123,11 @@ class DetailPengembalianController extends GetxController {
 
   Future<void> simpanData() async {
     try {
-      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      // 1. Tampilkan Loading Overlay
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()), 
+        barrierDismissible: false
+      );
       
       final tglSimpan = DateTime(
         tglKembali.value.year, 
@@ -127,18 +137,43 @@ class DetailPengembalianController extends GetxController {
         waktuKembali.value.minute
       );
 
-      // Sinkronisasi dengan tabel di screenshot (pengembalian & status_transaksi)
+      // 2. Update database
+      // PENTING: Gunakan StatusPinjam.selesai agar konsisten dengan filter di halaman Riwayat
       await supabase.from('peminjaman').update({
         'pengembalian': tglSimpan.toIso8601String(),
-        'status_transaksi': 'selesai',
+        'status_transaksi': StatusPinjam.selesai, // Menggunakan konstanta 'selesai'
+        'denda': nominalDenda.value, // Tambahkan kolom denda jika ada di tabel Anda
       }).eq('id_pinjam', pinjam.idPinjam);
 
-      Get.back(); // Tutup loading
-      Get.back(); // Kembali ke list
-      Get.snackbar("Sukses", "Barang telah dikembalikan", backgroundColor: Colors.green, colorText: Colors.white);
+      // 3. Trigger Refresh untuk halaman List (PBO - State Management)
+      // Jika Anda punya controller untuk halaman riwayat/list pengembalian, 
+      // panggil fungsi fetch datanya di sini agar list otomatis terupdate.
+      // Contoh: if (Get.isRegistered<HistoryController>()) Get.find<HistoryController>().refreshData();
+
+      Get.back(); // Tutup dialog loading
+      
+      // 4. Kembali ke halaman sebelumnya dengan hasil 'true'
+      // Ini memberitahu halaman sebelumnya bahwa transaksi sukses dilakukan
+      Get.back(result: true); 
+
+      Get.snackbar(
+        "Berhasil", 
+        "Data pengembalian telah disimpan",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(15),
+      );
     } catch (e) {
-      Get.back();
-      Get.snackbar("Error", "Gagal menyimpan: $e");
+      Get.back(); // Tutup dialog loading jika error
+      debugPrint("Error Simpan: $e");
+      Get.snackbar(
+        "Gagal", 
+        "Terjadi kesalahan saat menyimpan data",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 }
@@ -173,12 +208,12 @@ class DetailPengembalianAktifPage extends StatelessWidget {
             const SizedBox(height: 10),
             _buildListAlat(c),
             const SizedBox(height: 25),
-            _infoRow("Nama Peminjam", c.namaPeminjam.value),
-            _infoRow("Tenggat Waktu", p.tenggatDate != null 
+            _infoRow("Nama ", c.namaPeminjam.value),
+            _infoRow("Tenggat ", p.tenggatDate != null 
                 ? DateFormat('dd MMM yyyy, HH:mm').format(p.tenggatDate!) : '-'),
             const Divider(height: 40),
             
-            const Text("Atur Waktu Kembali", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("Pengembalian", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             _buildDateTimePicker(context, c),
             const SizedBox(height: 25),
@@ -263,7 +298,7 @@ class DetailPengembalianAktifPage extends StatelessWidget {
         minimumSize: const Size(double.infinity, 55),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
       ),
-      child: const Text("KONFIRMASI PENGEMBALIAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      child: const Text("KONFIRMASI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 

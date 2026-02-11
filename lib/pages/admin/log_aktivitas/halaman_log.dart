@@ -91,7 +91,7 @@ class _LogAktivitasPageState extends State<LogAktivitasPage> {
                       builder: (context, userSnapshot) {
                         // Data User asli dari database
                         String namaPetugas = userSnapshot.data?['nama'] ?? "Memuat...";
-                        String roleUser = userSnapshot.data?['role'] ?? "Petugas";
+                        String roleUser = userSnapshot.data?['role'] ?? "Admin";
                         
                         return Container(
                           margin: const EdgeInsets.only(bottom: 15),

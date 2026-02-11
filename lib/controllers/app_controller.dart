@@ -5,6 +5,8 @@ import 'package:aplikasi_peminjamanbarang/pages/petugas/beranda/beranda_petugas.
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AppController extends GetxController {
   var dataUser = {}.obs;
@@ -15,6 +17,40 @@ class AppController extends GetxController {
   var emailError = RxnString();
   var passwordError = RxnString();
   var isPasswordVisible = false.obs; // Logika visibility
+
+  Future<void> signInWithGoogle() async {
+  try {
+    // 1. Inisialisasi Google Sign In
+    // Untuk Android, masukkan serverClientId (diambil dari Web Client ID di Google Console)
+    final googleSignIn = GoogleSignIn(
+  clientId: '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
+  // Kita beri syarat: kalau Web (kIsWeb), serverClientId-nya dikosongkan (null)
+  serverClientId: kIsWeb ? null : '351912784268-v54gl2eb6t8vricnrbveoo4ciaffhgm9.apps.googleusercontent.com',
+);
+    
+    final googleUser = await googleSignIn.signIn();
+    final googleAuth = await googleUser!.authentication;
+    final accessToken = googleAuth.accessToken;
+    final idToken = googleAuth.idToken;
+
+    if (accessToken == null || idToken == null) {
+      throw 'No Access Token or ID Token found.';
+    }
+
+    // 2. Kirim kredensial ke Supabase
+    await Supabase.instance.client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+    
+    // 3. Navigasi ke Beranda setelah berhasil
+    Get.offAllNamed('/dashboard');
+
+  } catch (error) {
+    print('Error Google Sign In: $error');
+  }
+}
 
   Future<void> login(String email, String password) async {
     // Reset error setiap kali tombol ditekan

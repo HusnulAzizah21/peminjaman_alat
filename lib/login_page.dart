@@ -1,6 +1,7 @@
 import 'package:aplikasi_peminjamanbarang/controllers/app_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'controllers/app_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -91,6 +92,18 @@ class _LoginPageState extends State<LoginPage> {
                       ? const CircularProgressIndicator(color: Colors.white) 
                       : const Text("Masuk", style: TextStyle(color: Colors.white, fontSize: 16)),
                   )),
+
+                  ElevatedButton.icon(
+                    onPressed: () => authC.signInWithGoogle(), // Panggil fungsi di controller
+                    icon: const Icon(Icons.login, color: Colors.red),
+                    label: const Text("Masuk dengan Google"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.grey),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                    ),
+                  )
                 ],
               ),
             ),

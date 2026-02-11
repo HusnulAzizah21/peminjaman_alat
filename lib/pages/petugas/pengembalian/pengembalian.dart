@@ -114,7 +114,7 @@ class PetugasPengembalianPage extends StatelessWidget {
       child: TextField(
         onChanged: (val) => controller.searchQuery.value = val,
         decoration: InputDecoration(
-          hintText: "Cari data...",
+          hintText: "Pencarian...",
           prefixIcon: const Icon(Icons.search),
           filled: true,
           fillColor: Colors.grey.shade100,
@@ -129,9 +129,9 @@ class PetugasPengembalianPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          _tabButton("Aktif (Disetujui)", controller.isTabAktif.value, () => controller.isTabAktif.value = true),
+          _tabButton("Peminjaman Aktif", controller.isTabAktif.value, () => controller.isTabAktif.value = true),
           const SizedBox(width: 12),
-          _tabButton("Selesai", !controller.isTabAktif.value, () => controller.isTabAktif.value = false),
+          _tabButton("selesai", !controller.isTabAktif.value, () => controller.isTabAktif.value = false),
         ],
       ),
     ));
@@ -142,11 +142,10 @@ class PetugasPengembalianPage extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: active ? const Color(0xFF1F3C58) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: active ? null : Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(50),
           ),
           child: Text(label, textAlign: TextAlign.center, 
             style: TextStyle(color: active ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
@@ -250,4 +249,4 @@ class PetugasPengembalianPage extends StatelessWidget {
       },
     );
   }
-}
+} //login google, realtime = buka 2 google chrome, batasan peminjaman, tambah kondisi barang. barang harus dikembalikan sebelum pinjam lagi.
